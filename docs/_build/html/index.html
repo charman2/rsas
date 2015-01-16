@@ -1,0 +1,601 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Welcome to rsas’s documentation! &mdash; rsas 0.1.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.1.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="rsas 0.1.1 documentation" href="#" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="#">rsas 0.1.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="welcome-to-rsas-s-documentation">
+<h1>Welcome to rsas&#8217;s documentation!<a class="headerlink" href="#welcome-to-rsas-s-documentation" title="Permalink to this headline">¶</a></h1>
+<p>The theory and implementation here are described in:</p>
+<p>Harman, C. J. (2014), Time-variable transit time distributions and transport:
+Theory and application to storage-dependent transport of chloride in a watershed,
+Water Resour. Res., 51, doi:10.1002/2014WR015707.</p>
+<p>The code in rSAS.pyx contains three slightly different implementations of the model.</p>
+<dl class="docutils">
+<dt>solve_all_by_age_2out</dt>
+<dd>This is the original implementation used to generate the results in the paper.
+It solves for two outputs (Q1 and Q2, which might be discharge and ET) using
+an algorithm with an outer loop over all ages, and vectorized calculations over
+all times. It is slightly faster than the other implementations, but is more
+memory intensive. Unlike the others though, there is no option to calculate
+output concentration timeseries inline. The calculated transit time
+distributions must be used to perform the convolutions after the code has
+completed.</dd>
+<dt>solve_all_by_time_2out</dt>
+<dd>Solution is found by looping over times, with all age calculations
+vectorized. Slower, but easier to understand and build on than
+solve_all_by_age_2out. Includes option to determine output concentrations
+from a given input concentration progressively.</dd>
+<dt>solve_all_by_time_1out</dt>
+<dd>Same as solve_all_by_time_2out, but for only one flux out (Q1).</dd>
+</dl>
+<p>The end of the code gives class definitions for different rSAS functional forms.
+These can be expanded with more definitions. The function rSAS_setup selects
+the requested functional form (using an identifier string) and initializes an
+instance.</p>
+<div class="section" id="module-rsas">
+<span id="documentation-for-the-code"></span><h2>Documentation for the Code<a class="headerlink" href="#module-rsas" title="Permalink to this headline">¶</a></h2>
+<p>Time-variable transport using storage selection (SAS) functions
+.. moduleauthor:: Ciaran Harman &lt;<a class="reference external" href="mailto:charman1&#37;&#52;&#48;jhu&#46;edu">charman1<span>&#64;</span>jhu<span>&#46;</span>edu</a>&gt;</p>
+<p>The theory and implementation here are described in:</p>
+<p>Harman, C. J. (2014), Time-variable transit time distributions and transport:
+Theory and application to storage-dependent transport of chloride in a watershed,
+Water Resour. Res., 51, doi:10.1002/2014WR015707.</p>
+<p>The code in rSAS.pyx contains three slightly different implementations of the model.</p>
+<dl class="docutils">
+<dt>solve_all_by_age_2out</dt>
+<dd>This is the original implementation used to generate the results in the paper.
+It solves for two outputs (Q1 and Q2, which might be discharge and ET) using
+an algorithm with an outer loop over all ages, and vectorized calculations over
+all times. It is slightly faster than the other implementations, but is more
+memory intensive. Unlike the others though, there is no option to calculate 
+output concentration timeseries inline. The calculated transit time
+distributions must be used to perform the convolutions after the code has 
+completed.</dd>
+<dt>solve_all_by_time_2out</dt>
+<dd>Solution is found by looping over times, with all age calculations
+vectorized. Slower, but easier to understand and build on than 
+solve_all_by_age_2out. Includes option to determine output concentrations
+from a given input concentration progressively.</dd>
+<dt>solve_all_by_time_1out</dt>
+<dd>Same as solve_all_by_time_2out, but for only one flux out (Q1).</dd>
+</dl>
+<p>The end of the code gives class definitions for different rSAS functional forms.
+These can be expanded with more definitions. The function rSAS_setup selects 
+the requested functional form (using an identifier string) and initializes an
+instance.</p>
+<dl class="function">
+<dt id="rsas.rSAS_setup">
+<code class="descclassname">rsas.</code><code class="descname">rSAS_setup</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#rsas.rSAS_setup" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize an rSAS function</p>
+<dl class="docutils">
+<dt>rSAS_type <span class="classifier-delimiter">:</span> <span class="classifier">str</span></dt>
+<dd>A string indicating the requested rSAS functional form.</dd>
+<dt>params <span class="classifier-delimiter">:</span> <span class="classifier">n x k float64 ndarray</span></dt>
+<dd>Parameters for the rSAS function. The number of columns and 
+their meaning depends on which rSAS type is chosen. For all the rSAS 
+functions implemented so far, each row corresponds with a timestep.</dd>
+</dl>
+<dl class="docutils">
+<dt>rSAS_fun <span class="classifier-delimiter">:</span> <span class="classifier">rsas function</span></dt>
+<dd>An rsas function of the chosen class</dd>
+</dl>
+<p>The created function object will have methods that vary between types. All
+must have two methods cdf_all and cdf_i.</p>
+<dl class="docutils">
+<dt>rSAS_fun.cdf_all(ndarray ST)</dt>
+<dd>returns the cumulative distribution function for an array ST (which
+must be the same length as the params matrix used to create the 
+function). Each value of ST is evaluated using the parameter values
+on the respective row of params</dd>
+<dt>rSAS_fun.cdf_i(ndarray ST, int i)</dt>
+<dd>returns the cumulative distribution function for an array ST (which
+can be of any size). Each value of ST is evaluated using the
+parameter values on row i.</dd>
+</dl>
+<p>Available choices for rSAS_type, and description of parameter array.
+These all take one parameter set (row) per timestep:</p>
+<dl class="docutils">
+<dt>&#8216;uniform&#8217;</dt>
+<dd><dl class="first last docutils">
+<dt>Uniform distribution over the range [a, b].</dt>
+<dd>Q_params[:, 0] : a
+Q_params[:, 1] : b</dd>
+</dl>
+</dd>
+<dt>&#8216;gamma&#8217;</dt>
+<dd><dl class="first last docutils">
+<dt>Gamma distribution</dt>
+<dd>Q_params[:, 0] : shift parameter
+Q_params[:, 1] : scale parameter
+Q_params[:, 2] : shape parameter</dd>
+</dl>
+</dd>
+<dt>&#8216;gamma_trunc&#8217;</dt>
+<dd><dl class="first last docutils">
+<dt>Gamma distribution, truncated at a maximum value</dt>
+<dd>Q_params[:, 0] : shift parameter
+Q_params[:, 1] : scale parameter
+Q_params[:, 2] : shape parameter
+Q_params[:, 3] : maximum value</dd>
+</dl>
+</dd>
+<dt>&#8216;SS_invgauss&#8217;</dt>
+<dd><p class="first">Produces analytical solution to the advection-dispersion equation
+(inverse Gaussian distribution) under steady-state flow.</p>
+<blockquote class="last">
+<div>Q_params[:, 0] : scale parameter
+Q_params[:, 1] : Peclet number</div></blockquote>
+</dd>
+<dt>&#8216;SS_mobileimmobile&#8217;</dt>
+<dd><p class="first">Produces analytical solution to the advection-dispersion equation with
+linear mobile-immobile zone exchange under steady-state flow.</p>
+<blockquote class="last">
+<div>Q_params[:, 0] : scale parameter
+Q_params[:, 1] : Peclet number
+Q_params[:, 2] : beta parameter</div></blockquote>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="rsas.solve_all_by_age_2out">
+<code class="descclassname">rsas.</code><code class="descname">solve_all_by_age_2out</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#rsas.solve_all_by_age_2out" title="Permalink to this definition">¶</a></dt>
+<dd><p>rSAS model with 2 outflows, solved using the original age-based algorithm</p>
+<p>This is the original implementation used to generate the results in the paper.
+It solves for two outputs (Q1 and Q2, which might be discharge and ET) using
+an algorithm with an outer loop over all ages, and vectorized calculations over
+all times. It is slightly faster than the other implementations, but is more
+memory intensive. Unlike the others though, there is no option to calculate 
+output concentration timeseries inline. The calculated transit time
+distributions must be used to perform the convolutions after the code has 
+completed.</p>
+<dl class="docutils">
+<dt>J <span class="classifier-delimiter">:</span> <span class="classifier">n x 1 float64 ndarray</span></dt>
+<dd>Timestep-averaged inflow timeseries</dd>
+<dt>Q1, Q2 <span class="classifier-delimiter">:</span> <span class="classifier">n x 1 float64 ndarray</span></dt>
+<dd>Timestep-averaged outflow timeseries. Must have same units and length as J</dd>
+<dt>rSAS1_params, rSAS2_params <span class="classifier-delimiter">:</span> <span class="classifier">n x k float64 ndarray</span></dt>
+<dd>Parameters for the Q1, Q2 rSAS function. The number of columns and 
+their meaning depends on which rSAS type is chosen. For all the rSAS 
+functions implemented so far, each row corresponds with a timestep, and
+so the first dimension must be the same as for J.</dd>
+<dt>rSAS1_type, rSAS2_type <span class="classifier-delimiter">:</span> <span class="classifier">string</span></dt>
+<dd>rSAS functional form. See below for available options.</dd>
+<dt>ST_init <span class="classifier-delimiter">:</span> <span class="classifier">m x 1 float64 ndarray (default None)</span></dt>
+<dd>Initial condition for the age-ranked storage. The length of ST_init
+determines the maximum age calculated. The first entry must be 0
+(corresponding to zero age). To calculate transit time dsitributions up
+to N timesteps in age, ST_init should have length m = M + 1. The default
+initial condition is ST_init=np.zeros(len(J) + 1).</dd>
+<dt>dt <span class="classifier-delimiter">:</span> <span class="classifier">float (default 1)</span></dt>
+<dd>Timestep, assuming same units as J, Q1, Q2</dd>
+<dt>n_substeps <span class="classifier-delimiter">:</span> <span class="classifier">int (default 1)</span></dt>
+<dd>if n_substeps&gt;1, the timesteps are subdivided to allow a more accurate
+solution. Default is 1, which is also the value used in Harman (2015)</dd>
+<dt>n_iterations <span class="classifier-delimiter">:</span> <span class="classifier">int (default 3)</span></dt>
+<dd>Number of iterations to converge on a consistent solution. Convergence 
+in Harman (2015) was very fast, and n_iterations=3 was adequate (also 
+the default value here)</dd>
+</dl>
+<dl class="docutils">
+<dt>ST <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 2D array</span></dt>
+<dd>Array of age-ranked storage for all ages and times.</dd>
+<dt>PQ1, PQ2 <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 2D array</span></dt>
+<dd>Time-varying cumulative transit time distributions.</dd>
+<dt>Q1out, Q2out <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 2D array</span></dt>
+<dd>Age-based outflow timeseries. Useful for visualization.</dd>
+<dt>theta1, theta2, thetaS <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 2D array</span></dt>
+<dd>Keeps track of the fraction of inputs that leave by each flux or remain
+in storage. This is needed to do transport with evapoconcentration.</dd>
+<dt>MassBalance <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 2D array</span></dt>
+<dd>Should always be within tolerances of zero, unless something is very wrong.</dd>
+</dl>
+<p>For each of the above arrays, each row represents an age, and each
+column is a timestep. For N timesteps and M ages, ST will have dimensions
+(M+1) x (N+1), with the first row representing age T = 0 and the first
+column derived from the initial condition.</p>
+<p>Available choices for rSAS1_type, rSAS2_type, and description of parameter array.
+These all take one parameter set (row) per timestep:</p>
+<dl class="docutils">
+<dt>&#8216;uniform&#8217;</dt>
+<dd><dl class="first last docutils">
+<dt>Uniform distribution over the range [a, b].</dt>
+<dd>Q_params[:, 0] : a
+Q_params[:, 1] : b</dd>
+</dl>
+</dd>
+<dt>&#8216;gamma&#8217;</dt>
+<dd><dl class="first last docutils">
+<dt>Gamma distribution</dt>
+<dd>Q_params[:, 0] : shift parameter
+Q_params[:, 1] : scale parameter
+Q_params[:, 2] : shape parameter</dd>
+</dl>
+</dd>
+<dt>&#8216;gamma_trunc&#8217;</dt>
+<dd><dl class="first last docutils">
+<dt>Gamma distribution, truncated at a maximum value</dt>
+<dd>Q_params[:, 0] : shift parameter
+Q_params[:, 1] : scale parameter
+Q_params[:, 2] : shape parameter
+Q_params[:, 3] : maximum value</dd>
+</dl>
+</dd>
+<dt>&#8216;SS_invgauss&#8217;</dt>
+<dd><p class="first">Produces analytical solution to the advection-dispersion equation
+(inverse Gaussian distribution) under steady-state flow.</p>
+<blockquote class="last">
+<div>Q_params[:, 0] : scale parameter
+Q_params[:, 1] : Peclet number</div></blockquote>
+</dd>
+<dt>&#8216;SS_mobileimmobile&#8217;</dt>
+<dd><p class="first">Produces analytical solution to the advection-dispersion equation with
+linear mobile-immobile zone exchange under steady-state flow.</p>
+<blockquote class="last">
+<div>Q_params[:, 0] : scale parameter
+Q_params[:, 1] : Peclet number
+Q_params[:, 2] : beta parameter</div></blockquote>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="rsas.solve_all_by_time_1out">
+<code class="descclassname">rsas.</code><code class="descname">solve_all_by_time_1out</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#rsas.solve_all_by_time_1out" title="Permalink to this definition">¶</a></dt>
+<dd><p>rSAS model with 1 flux, solved by looping over timesteps</p>
+<p>Same as solve_all_by_time_2out, but for only one flux out (Q1).</p>
+<dl class="docutils">
+<dt>J <span class="classifier-delimiter">:</span> <span class="classifier">n x 1 float64 ndarray</span></dt>
+<dd>Timestep-averaged inflow timeseries</dd>
+<dt>Q1 <span class="classifier-delimiter">:</span> <span class="classifier">n x 1 float64 ndarray</span></dt>
+<dd>Timestep-averaged outflow timeseries. Must have same units and length as J</dd>
+<dt>rSAS1_params <span class="classifier-delimiter">:</span> <span class="classifier">n x k float64 ndarray</span></dt>
+<dd>Parameters for the Q1 rSAS function. The number of columns and 
+their meaning depends on which rSAS type is chosen. For all the rSAS 
+functions implemented so far, each row corresponds with a timestep, and
+so the first dimension must be the same as for J.</dd>
+<dt>rSAS1_type <span class="classifier-delimiter">:</span> <span class="classifier">string</span></dt>
+<dd>rSAS functional form. See below for available options.</dd>
+<dt>ST_init <span class="classifier-delimiter">:</span> <span class="classifier">m x 1 float64 ndarray</span></dt>
+<dd>Initial condition for the age-ranked storage. The length of ST_init
+determines the maximum age calculated. The first entry must be 0
+(corresponding to zero age). To calculate transit time dsitributions up
+to N timesteps in age, ST_init should have length m = M + 1. The default
+initial condition is ST_init=np.zeros(len(J) + 1).</dd>
+<dt>dt <span class="classifier-delimiter">:</span> <span class="classifier">float (default 1)</span></dt>
+<dd>Timestep, assuming same units as J, Q1</dd>
+<dt>n_substeps <span class="classifier-delimiter">:</span> <span class="classifier">int (default 1)</span></dt>
+<dd>if n_substeps&gt;1, the timesteps are subdivided to allow a more accurate
+solution. Default is 1, which is also the value used in Harman (2015)</dd>
+<dt>n_iterations <span class="classifier-delimiter">:</span> <span class="classifier">int (default 3)</span></dt>
+<dd>Number of iterations to converge on a consistent solution. Convergence 
+in Harman (2015) was very fast, and n_iterations=3 was adequate (also 
+the default value here)</dd>
+<dt>full_outputs <span class="classifier-delimiter">:</span> <span class="classifier">bool (default True)</span></dt>
+<dd>Option to return the full state variables array ST the cumulative
+transit time distributions PQ1, PQ2, and other variables</dd>
+<dt>C_in <span class="classifier-delimiter">:</span> <span class="classifier">n x 1 float64 ndarray (default None)</span></dt>
+<dd>Optional timeseries of inflow concentrations to convolved progressively
+with the computed transit time distribution for flux Q1</dd>
+<dt>C_old <span class="classifier-delimiter">:</span> <span class="classifier">float (default None)</span></dt>
+<dd>Optional. Concentration of the &#8216;unobserved fraction&#8217; of Q1 (from inflows 
+prior to the start of the simulation).</dd>
+</dl>
+<dl class="docutils">
+<dt>C_out <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 1D array</span></dt>
+<dd>If C_in is supplied, C_out is the timeseries of outflow concentration 
+in Q1.</dd>
+<dt>ST <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 2D array</span></dt>
+<dd>Array of age-ranked storage for all ages and times.</dd>
+<dt>PQ1 <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 2D array</span></dt>
+<dd>Time-varying cumulative transit time distributions.</dd>
+<dt>Q1out <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 2D array</span></dt>
+<dd>Age-based outflow timeseries. Useful for visualization.</dd>
+<dt>theta1, thetaS <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 2D array</span></dt>
+<dd>Keeps track of the fraction of inputs that leave by each flux or remain
+in storage.</dd>
+<dt>MassBalance <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 2D array</span></dt>
+<dd>Should always be within tolerances of zero, unless something is very wrong.</dd>
+</dl>
+<p>For each of the arrays ST, PQ1, Q1out, theta1, thetaS,
+and MassBalance, each row represents an age, and each
+column is a timestep. For N timesteps and M ages, ST will have dimensions
+(M+1) x (N+1), with the first row representing age T = 0 and the first
+column derived from the initial condition.</p>
+<p>If full_outputs=True and C_in is supplied, the variables are returned as:</p>
+<div class="highlight-python"><div class="highlight"><pre>C_out, ST, PQ1, PQ2, Q1out, theta1, thetaS, MassBalance = rsas.solve_all_by_time_2out(...
+</pre></div>
+</div>
+<p>If C_in is not supplied, C_out is not returned:</p>
+<div class="highlight-python"><div class="highlight"><pre>ST, PQ1, PQ2, Q1out, theta1, thetaS, MassBalance = rsas.solve_all_by_time_2out(...
+</pre></div>
+</div>
+<p>Otherwise if full_outputs=False</p>
+<blockquote>
+<div>C_out = rsas.solve_all_by_time_2out(...</div></blockquote>
+<p>Available choices for rSAS1_type, and description of parameter array.
+These all take one parameter set (row) per timestep:</p>
+<dl class="docutils">
+<dt>&#8216;uniform&#8217;</dt>
+<dd><dl class="first last docutils">
+<dt>Uniform distribution over the range [a, b].</dt>
+<dd>Q_params[:, 0] : a
+Q_params[:, 1] : b</dd>
+</dl>
+</dd>
+<dt>&#8216;gamma&#8217;</dt>
+<dd><dl class="first last docutils">
+<dt>Gamma distribution</dt>
+<dd>Q_params[:, 0] : shift parameter
+Q_params[:, 1] : scale parameter
+Q_params[:, 2] : shape parameter</dd>
+</dl>
+</dd>
+<dt>&#8216;gamma_trunc&#8217;</dt>
+<dd><dl class="first last docutils">
+<dt>Gamma distribution, truncated at a maximum value</dt>
+<dd>Q_params[:, 0] : shift parameter
+Q_params[:, 1] : scale parameter
+Q_params[:, 2] : shape parameter
+Q_params[:, 3] : maximum value</dd>
+</dl>
+</dd>
+<dt>&#8216;SS_invgauss&#8217;</dt>
+<dd><p class="first">Produces analytical solution to the advection-dispersion equation
+(inverse Gaussian distribution) under steady-state flow.</p>
+<blockquote class="last">
+<div>Q_params[:, 0] : scale parameter
+Q_params[:, 1] : Peclet number</div></blockquote>
+</dd>
+<dt>&#8216;SS_mobileimmobile&#8217;</dt>
+<dd><p class="first">Produces analytical solution to the advection-dispersion equation with
+linear mobile-immobile zone exchange under steady-state flow.</p>
+<blockquote class="last">
+<div>Q_params[:, 0] : scale parameter
+Q_params[:, 1] : Peclet number
+Q_params[:, 2] : beta parameter</div></blockquote>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="rsas.solve_all_by_time_2out">
+<code class="descclassname">rsas.</code><code class="descname">solve_all_by_time_2out</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#rsas.solve_all_by_time_2out" title="Permalink to this definition">¶</a></dt>
+<dd><p>rSAS model with 2 outflows, solved by looping over timesteps</p>
+<p>Solves for two outflows (Q1 and Q2, which might be discharge and ET).    
+Solution is found by looping over times, with all age calculations
+vectorized. Slower, but easier to understand and build on than 
+solve_all_by_age_2out. Includes option to determine output concentrations
+from a given input concentration progressively.</p>
+<dl class="docutils">
+<dt>J <span class="classifier-delimiter">:</span> <span class="classifier">n x 1 float64 ndarray</span></dt>
+<dd>Timestep-averaged inflow timeseries</dd>
+<dt>Q1, Q2 <span class="classifier-delimiter">:</span> <span class="classifier">n x 1 float64 ndarray</span></dt>
+<dd>Timestep-averaged outflow timeseries. Must have same units and length as J</dd>
+<dt>rSAS1_params, rSAS2_params <span class="classifier-delimiter">:</span> <span class="classifier">n x k float64 ndarray</span></dt>
+<dd>Parameters for the Q1, Q2 rSAS function. The number of columns and 
+their meaning depends on which rSAS type is chosen. For all the rSAS 
+functions implemented so far, each row corresponds with a timestep, and
+so the first dimension must be the same as for J.</dd>
+<dt>rSAS1_type, rSAS2_type <span class="classifier-delimiter">:</span> <span class="classifier">string</span></dt>
+<dd>rSAS functional form. See below for available options.</dd>
+<dt>ST_init <span class="classifier-delimiter">:</span> <span class="classifier">m x 1 float64 ndarray</span></dt>
+<dd>Initial condition for the age-ranked storage. The length of ST_init
+determines the maximum age calculated. The first entry must be 0
+(corresponding to zero age). To calculate transit time dsitributions up
+to N timesteps in age, ST_init should have length m = M + 1. The default
+initial condition is ST_init=np.zeros(len(J) + 1).</dd>
+<dt>dt <span class="classifier-delimiter">:</span> <span class="classifier">float (default 1)</span></dt>
+<dd>Timestep, assuming same units as J, Q1, Q2</dd>
+<dt>n_substeps <span class="classifier-delimiter">:</span> <span class="classifier">int (default 1)</span></dt>
+<dd>if n_substeps&gt;1, the timesteps are subdivided to allow a more accurate
+solution. Default is 1, which is also the value used in Harman (2015)</dd>
+<dt>n_iterations <span class="classifier-delimiter">:</span> <span class="classifier">int (default 3)</span></dt>
+<dd>Number of iterations to converge on a consistent solution. Convergence 
+in Harman (2015) was very fast, and n_iterations=3 was adequate (also 
+the default value here)</dd>
+<dt>full_outputs <span class="classifier-delimiter">:</span> <span class="classifier">bool (default True)</span></dt>
+<dd>Option to return the full state variables array ST the cumulative
+transit time distributions PQ1, PQ2, and other variables</dd>
+<dt>C_in <span class="classifier-delimiter">:</span> <span class="classifier">n x 1 float64 ndarray (default None)</span></dt>
+<dd>Optional timeseries of inflow concentrations to convolved progressively
+with the computed transit time distribution for flux Q1</dd>
+<dt>C_old <span class="classifier-delimiter">:</span> <span class="classifier">float (default None)</span></dt>
+<dd>Optional. Concentration of the &#8216;unobserved fraction&#8217; of Q1 (from inflows 
+prior to the start of the simulation).</dd>
+<dt>evapoconcentration <span class="classifier-delimiter">:</span> <span class="classifier">bool (default False)</span></dt>
+<dd>Optional. If True, it will be assumed that species in C_in are not removed 
+by the second flux, Q2, and instead become increasingly concentrated in
+storage.</dd>
+</dl>
+<dl class="docutils">
+<dt>C_out <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 1D array</span></dt>
+<dd>If C_in is supplied, C_out is the timeseries of outflow concentration 
+in Q1.</dd>
+<dt>ST <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 2D array</span></dt>
+<dd>Array of age-ranked storage for all ages and times.</dd>
+<dt>PQ1, PQ2 <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 2D array</span></dt>
+<dd>Time-varying cumulative transit time distributions.</dd>
+<dt>Q1out, Q2out <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 2D array</span></dt>
+<dd>Age-based outflow timeseries. Useful for visualization.</dd>
+<dt>theta1, theta2, thetaS <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 2D array</span></dt>
+<dd>Keeps track of the fraction of inputs that leave by each flux or remain
+in storage. This is needed to do transport with evapoconcentration.</dd>
+<dt>MassBalance <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 2D array</span></dt>
+<dd>Should always be within tolerances of zero, unless something is very wrong.</dd>
+</dl>
+<p>For each of the arrays ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS,
+and MassBalance, each row represents an age, and each
+column is a timestep. For N timesteps and M ages, ST will have dimensions
+(M+1) x (N+1), with the first row representing age T = 0 and the first
+column derived from the initial condition.</p>
+<p>If full_outputs=True and C_in is supplied, the variables are returned as:</p>
+<div class="highlight-python"><div class="highlight"><pre>C_out, ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance = rsas.solve_all_by_time_2out(...
+</pre></div>
+</div>
+<p>If C_in is not supplied, C_out is not returned:</p>
+<div class="highlight-python"><div class="highlight"><pre>ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance = rsas.solve_all_by_time_2out(...
+</pre></div>
+</div>
+<p>Otherwise if full_outputs=False</p>
+<blockquote>
+<div>C_out = rsas.solve_all_by_time_2out(...</div></blockquote>
+<p>Available choices for rSAS1_type, rSAS2_type, and description of parameter array.
+These all take one parameter set (row) per timestep:</p>
+<dl class="docutils">
+<dt>&#8216;uniform&#8217;</dt>
+<dd><dl class="first last docutils">
+<dt>Uniform distribution over the range [a, b].</dt>
+<dd>Q_params[:, 0] : a
+Q_params[:, 1] : b</dd>
+</dl>
+</dd>
+<dt>&#8216;gamma&#8217;</dt>
+<dd><dl class="first last docutils">
+<dt>Gamma distribution</dt>
+<dd>Q_params[:, 0] : shift parameter
+Q_params[:, 1] : scale parameter
+Q_params[:, 2] : shape parameter</dd>
+</dl>
+</dd>
+<dt>&#8216;gamma_trunc&#8217;</dt>
+<dd><dl class="first last docutils">
+<dt>Gamma distribution, truncated at a maximum value</dt>
+<dd>Q_params[:, 0] : shift parameter
+Q_params[:, 1] : scale parameter
+Q_params[:, 2] : shape parameter
+Q_params[:, 3] : maximum value</dd>
+</dl>
+</dd>
+<dt>&#8216;SS_invgauss&#8217;</dt>
+<dd><p class="first">Produces analytical solution to the advection-dispersion equation
+(inverse Gaussian distribution) under steady-state flow.</p>
+<blockquote class="last">
+<div>Q_params[:, 0] : scale parameter
+Q_params[:, 1] : Peclet number</div></blockquote>
+</dd>
+<dt>&#8216;SS_mobileimmobile&#8217;</dt>
+<dd><p class="first">Produces analytical solution to the advection-dispersion equation with
+linear mobile-immobile zone exchange under steady-state flow.</p>
+<blockquote class="last">
+<div>Q_params[:, 0] : scale parameter
+Q_params[:, 1] : Peclet number
+Q_params[:, 2] : beta parameter</div></blockquote>
+</dd>
+</dl>
+</dd></dl>
+
+<div class="toctree-wrapper compound">
+<ul class="simple">
+</ul>
+</div>
+</div>
+</div>
+<div class="section" id="indices-and-tables">
+<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h1>
+<ul class="simple">
+<li><a class="reference internal" href="genindex.html"><em>Index</em></a></li>
+<li><a class="reference internal" href="py-modindex.html"><em>Module Index</em></a></li>
+<li><a class="reference internal" href="search.html"><em>Search Page</em></a></li>
+</ul>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="#">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Welcome to rsas&#8217;s documentation!</a><ul>
+<li><a class="reference internal" href="#module-rsas">Documentation for the Code</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
+</ul>
+
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/index.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="#">rsas 0.1.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2015, Ciaran J. Harman.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3b2.
+    </div>
+  </body>
+</html>

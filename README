@@ -1,0 +1,33 @@
+
+
+
+
+=================
+Introduction
+=================
+
+This is a numerical implementation of the model described in
+Harman, C. J. (2015), Time-variable transit time distributions and transport: 
+Theory and application to storage-dependent transport of chloride in a 
+watershed, Water Resour. Res., doi:10.1002/2014WR015707.
+
+=================
+Installation
+=================
+
+The rSAS.pyx code is written in Cython to allow fast execution. Before you run it,
+open a terminal in this directory and run:
+
+> python setup.py install
+
+It may take a few minutes. You may get warning messages, all of which can be ignored.
+Error messages cannot though, and will prevent the compilation from completion.
+
+Once the code has compiled successfully you don't need to do it again
+unless this code is changed.
+
+=================
+Documentation
+=================
+
+See the code documentation and docstrings for more information
