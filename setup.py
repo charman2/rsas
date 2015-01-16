@@ -24,7 +24,8 @@ config = {
     'packages' : ['rsas'],
     'scripts': [],
     'name': 'rsas',
-    'ext_modules': [Extension('main', ['./pyrex/main.pyx'], include_dirs=[numpy.get_include()], libraries=["m"])],
+    'ext_modules': [Extension('_rsas_functions', ['./rsas/_rsas_functions.pyx'], include_dirs=[numpy.get_include()], libraries=["m"]),
+                    Extension('_rsas', ['./rsas/_rsas.pyx'], include_dirs=[numpy.get_include()], libraries=["m"])],
     'cmdclass' : { 'build_ext': build_ext }
 }
  

@@ -18,6 +18,7 @@ ctypedef np.int_t inttype_t
 ctypedef np.long_t longtype_t
 cdef inline np.float64_t float64_max(np.float64_t a, np.float64_t b): return a if a >= b else b
 cdef inline np.float64_t float64_min(np.float64_t a, np.float64_t b): return a if a <= b else b
+from _rsas_functions import rSAS_setup
 from scipy.special import gamma as gamma_function
 from scipy.special import gammainc
 from scipy.special import erfc
@@ -764,7 +765,7 @@ def solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
     elif not full_outputs and C_in is not None:
         return C_out
 
-def rSAS_setup(rSAS_type, np.ndarray[dtype_t, ndim=2] params):
+#def rSAS_setup(rSAS_type, np.ndarray[dtype_t, ndim=2] params):
     """Initialize an rSAS function
 
     Parameters
@@ -826,6 +827,7 @@ def rSAS_setup(rSAS_type, np.ndarray[dtype_t, ndim=2] params):
             Q_params[:, 1] : Peclet number
             Q_params[:, 2] : beta parameter
     """
+"""
     if rSAS_type == 'gamma':
         return gamma_rSAS(params)
     elif rSAS_type == 'gamma_trunc':
@@ -1002,3 +1004,4 @@ class SS_mobileimmobile_rSAS:
             else:
                 return_cdf[j] = self.Omega(ST[j])
         return return_cdf
+"""

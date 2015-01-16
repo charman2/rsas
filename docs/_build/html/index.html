@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Welcome to rsas’s documentation! &mdash; rsas 0.1.1 documentation</title>
+    <title>Documentation of the rsas library &mdash; rsas 0.1.1 documentation</title>
     
     <link rel="stylesheet" href="_static/default.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -45,15 +45,15 @@
         <div class="bodywrapper">
           <div class="body" role="main">
             
-  <div class="section" id="welcome-to-rsas-s-documentation">
-<h1>Welcome to rsas&#8217;s documentation!<a class="headerlink" href="#welcome-to-rsas-s-documentation" title="Permalink to this headline">¶</a></h1>
-<p>The theory and implementation here are described in:</p>
+  <div class="section" id="documentation-of-the-rsas-library">
+<h1>Documentation of the rsas library<a class="headerlink" href="#documentation-of-the-rsas-library" title="Permalink to this headline">¶</a></h1>
+<p>The rsas theory is described in:</p>
 <p>Harman, C. J. (2014), Time-variable transit time distributions and transport:
 Theory and application to storage-dependent transport of chloride in a watershed,
 Water Resour. Res., 51, doi:10.1002/2014WR015707.</p>
-<p>The code in rSAS.pyx contains three slightly different implementations of the model.</p>
+<p>The code in _rsas.pyx contains three slightly different implementations of the model.</p>
 <dl class="docutils">
-<dt>solve_all_by_age_2out</dt>
+<dt>rsas.solve_all_by_age_2out</dt>
 <dd>This is the original implementation used to generate the results in the paper.
 It solves for two outputs (Q1 and Q2, which might be discharge and ET) using
 an algorithm with an outer loop over all ages, and vectorized calculations over
@@ -62,126 +62,23 @@ memory intensive. Unlike the others though, there is no option to calculate
 output concentration timeseries inline. The calculated transit time
 distributions must be used to perform the convolutions after the code has
 completed.</dd>
-<dt>solve_all_by_time_2out</dt>
+<dt>rsas.solve_all_by_time_2out</dt>
 <dd>Solution is found by looping over times, with all age calculations
 vectorized. Slower, but easier to understand and build on than
 solve_all_by_age_2out. Includes option to determine output concentrations
 from a given input concentration progressively.</dd>
-<dt>solve_all_by_time_1out</dt>
+<dt>rsas.solve_all_by_time_1out</dt>
 <dd>Same as solve_all_by_time_2out, but for only one flux out (Q1).</dd>
 </dl>
 <p>The end of the code gives class definitions for different rSAS functional forms.
 These can be expanded with more definitions. The function rSAS_setup selects
 the requested functional form (using an identifier string) and initializes an
 instance.</p>
-<div class="section" id="module-rsas">
-<span id="documentation-for-the-code"></span><h2>Documentation for the Code<a class="headerlink" href="#module-rsas" title="Permalink to this headline">¶</a></h2>
-<p>Time-variable transport using storage selection (SAS) functions
-.. moduleauthor:: Ciaran Harman &lt;<a class="reference external" href="mailto:charman1&#37;&#52;&#48;jhu&#46;edu">charman1<span>&#64;</span>jhu<span>&#46;</span>edu</a>&gt;</p>
-<p>The theory and implementation here are described in:</p>
-<p>Harman, C. J. (2014), Time-variable transit time distributions and transport:
-Theory and application to storage-dependent transport of chloride in a watershed,
-Water Resour. Res., 51, doi:10.1002/2014WR015707.</p>
-<p>The code in rSAS.pyx contains three slightly different implementations of the model.</p>
-<dl class="docutils">
-<dt>solve_all_by_age_2out</dt>
-<dd>This is the original implementation used to generate the results in the paper.
-It solves for two outputs (Q1 and Q2, which might be discharge and ET) using
-an algorithm with an outer loop over all ages, and vectorized calculations over
-all times. It is slightly faster than the other implementations, but is more
-memory intensive. Unlike the others though, there is no option to calculate 
-output concentration timeseries inline. The calculated transit time
-distributions must be used to perform the convolutions after the code has 
-completed.</dd>
-<dt>solve_all_by_time_2out</dt>
-<dd>Solution is found by looping over times, with all age calculations
-vectorized. Slower, but easier to understand and build on than 
-solve_all_by_age_2out. Includes option to determine output concentrations
-from a given input concentration progressively.</dd>
-<dt>solve_all_by_time_1out</dt>
-<dd>Same as solve_all_by_time_2out, but for only one flux out (Q1).</dd>
-</dl>
-<p>The end of the code gives class definitions for different rSAS functional forms.
-These can be expanded with more definitions. The function rSAS_setup selects 
-the requested functional form (using an identifier string) and initializes an
-instance.</p>
-<dl class="function">
-<dt id="rsas.rSAS_setup">
-<code class="descclassname">rsas.</code><code class="descname">rSAS_setup</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#rsas.rSAS_setup" title="Permalink to this definition">¶</a></dt>
-<dd><p>Initialize an rSAS function</p>
-<dl class="docutils">
-<dt>rSAS_type <span class="classifier-delimiter">:</span> <span class="classifier">str</span></dt>
-<dd>A string indicating the requested rSAS functional form.</dd>
-<dt>params <span class="classifier-delimiter">:</span> <span class="classifier">n x k float64 ndarray</span></dt>
-<dd>Parameters for the rSAS function. The number of columns and 
-their meaning depends on which rSAS type is chosen. For all the rSAS 
-functions implemented so far, each row corresponds with a timestep.</dd>
-</dl>
-<dl class="docutils">
-<dt>rSAS_fun <span class="classifier-delimiter">:</span> <span class="classifier">rsas function</span></dt>
-<dd>An rsas function of the chosen class</dd>
-</dl>
-<p>The created function object will have methods that vary between types. All
-must have two methods cdf_all and cdf_i.</p>
-<dl class="docutils">
-<dt>rSAS_fun.cdf_all(ndarray ST)</dt>
-<dd>returns the cumulative distribution function for an array ST (which
-must be the same length as the params matrix used to create the 
-function). Each value of ST is evaluated using the parameter values
-on the respective row of params</dd>
-<dt>rSAS_fun.cdf_i(ndarray ST, int i)</dt>
-<dd>returns the cumulative distribution function for an array ST (which
-can be of any size). Each value of ST is evaluated using the
-parameter values on row i.</dd>
-</dl>
-<p>Available choices for rSAS_type, and description of parameter array.
-These all take one parameter set (row) per timestep:</p>
-<dl class="docutils">
-<dt>&#8216;uniform&#8217;</dt>
-<dd><dl class="first last docutils">
-<dt>Uniform distribution over the range [a, b].</dt>
-<dd>Q_params[:, 0] : a
-Q_params[:, 1] : b</dd>
-</dl>
-</dd>
-<dt>&#8216;gamma&#8217;</dt>
-<dd><dl class="first last docutils">
-<dt>Gamma distribution</dt>
-<dd>Q_params[:, 0] : shift parameter
-Q_params[:, 1] : scale parameter
-Q_params[:, 2] : shape parameter</dd>
-</dl>
-</dd>
-<dt>&#8216;gamma_trunc&#8217;</dt>
-<dd><dl class="first last docutils">
-<dt>Gamma distribution, truncated at a maximum value</dt>
-<dd>Q_params[:, 0] : shift parameter
-Q_params[:, 1] : scale parameter
-Q_params[:, 2] : shape parameter
-Q_params[:, 3] : maximum value</dd>
-</dl>
-</dd>
-<dt>&#8216;SS_invgauss&#8217;</dt>
-<dd><p class="first">Produces analytical solution to the advection-dispersion equation
-(inverse Gaussian distribution) under steady-state flow.</p>
-<blockquote class="last">
-<div>Q_params[:, 0] : scale parameter
-Q_params[:, 1] : Peclet number</div></blockquote>
-</dd>
-<dt>&#8216;SS_mobileimmobile&#8217;</dt>
-<dd><p class="first">Produces analytical solution to the advection-dispersion equation with
-linear mobile-immobile zone exchange under steady-state flow.</p>
-<blockquote class="last">
-<div>Q_params[:, 0] : scale parameter
-Q_params[:, 1] : Peclet number
-Q_params[:, 2] : beta parameter</div></blockquote>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="function">
-<dt id="rsas.solve_all_by_age_2out">
-<code class="descclassname">rsas.</code><code class="descname">solve_all_by_age_2out</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#rsas.solve_all_by_age_2out" title="Permalink to this definition">¶</a></dt>
+<div class="section" id="module-_rsas">
+<span id="documentation-for-the-code"></span><h2>Documentation for the Code<a class="headerlink" href="#module-_rsas" title="Permalink to this headline">¶</a></h2>
+<span class="target" id="module-rsas"></span><dl class="function">
+<dt id="_rsas.solve_all_by_age_2out">
+<code class="descclassname">_rsas.</code><code class="descname">solve_all_by_age_2out</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#_rsas.solve_all_by_age_2out" title="Permalink to this definition">¶</a></dt>
 <dd><p>rSAS model with 2 outflows, solved using the original age-based algorithm</p>
 <p>This is the original implementation used to generate the results in the paper.
 It solves for two outputs (Q1 and Q2, which might be discharge and ET) using
@@ -282,8 +179,8 @@ Q_params[:, 2] : beta parameter</div></blockquote>
 </dd></dl>
 
 <dl class="function">
-<dt id="rsas.solve_all_by_time_1out">
-<code class="descclassname">rsas.</code><code class="descname">solve_all_by_time_1out</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#rsas.solve_all_by_time_1out" title="Permalink to this definition">¶</a></dt>
+<dt id="_rsas.solve_all_by_time_1out">
+<code class="descclassname">_rsas.</code><code class="descname">solve_all_by_time_1out</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#_rsas.solve_all_by_time_1out" title="Permalink to this definition">¶</a></dt>
 <dd><p>rSAS model with 1 flux, solved by looping over timesteps</p>
 <p>Same as solve_all_by_time_2out, but for only one flux out (Q1).</p>
 <dl class="docutils">
@@ -401,8 +298,8 @@ Q_params[:, 2] : beta parameter</div></blockquote>
 </dd></dl>
 
 <dl class="function">
-<dt id="rsas.solve_all_by_time_2out">
-<code class="descclassname">rsas.</code><code class="descname">solve_all_by_time_2out</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#rsas.solve_all_by_time_2out" title="Permalink to this definition">¶</a></dt>
+<dt id="_rsas.solve_all_by_time_2out">
+<code class="descclassname">_rsas.</code><code class="descname">solve_all_by_time_2out</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#_rsas.solve_all_by_time_2out" title="Permalink to this definition">¶</a></dt>
 <dd><p>rSAS model with 2 outflows, solved by looping over timesteps</p>
 <p>Solves for two outflows (Q1 and Q2, which might be discharge and ET).    
 Solution is found by looping over times, with all age calculations
@@ -550,8 +447,8 @@ Q_params[:, 2] : beta parameter</div></blockquote>
         <div class="sphinxsidebarwrapper">
   <h3><a href="#">Table Of Contents</a></h3>
   <ul>
-<li><a class="reference internal" href="#">Welcome to rsas&#8217;s documentation!</a><ul>
-<li><a class="reference internal" href="#module-rsas">Documentation for the Code</a></li>
+<li><a class="reference internal" href="#">Documentation of the rsas library</a><ul>
+<li><a class="reference internal" href="#module-_rsas">Documentation for the Code</a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>

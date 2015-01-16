@@ -60,7 +60,10 @@ def transport_with_evapoconcentration(PQ, thetaQ, thetaS, C_in, C_old):
     C_mod = (C_mod_raw + (1-observed_fraction) * C_old)
     return C_mod, C_mod_raw, observed_fraction
 
-# Load thedata
+# =====================================
+# Load and process the input timeseries
+# =====================================
+# Load the data
 data = pd.read_csv('lower_hafren_data.csv', index_col=0, parse_dates=True)
 data = data[:1000]
 N = len(data)
@@ -72,9 +75,15 @@ data['ET water flux mm/day'] = data['ET0 mm/day'] * k_ET
 # estimated from literature values and used to scale the timeseries values
 occult_fraction = 0.27
 data['P+occult Cl mg/l'] = data['P Cl mg/l'] / (1 - occult_fraction)
-# The concentration of discharge older than the start of observations was
+# =========================
+# Parameters needed by rsas
+# =========================
+# The concentration of discharge older than the start of observations is
 # assumed to be the long-term mean deposition rate divided by mean discharge
 C_old = np.mean(data['P+occult Cl mg/l'] * data['P water flux mm/day']) / np.mean(data['Q water flux mm/day'])
+# =========================
+# Create the rsas functions
+# =========================
 # Parameters for the rSAS function (see Harman [2015])
 ET_rSAS_fun_type = 'uniform'
 S_ET = 398.
