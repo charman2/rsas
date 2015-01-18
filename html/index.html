@@ -60,6 +60,14 @@ The Anaconda package (<a class="reference external" href="https://store.continuu
 the needed pieces, and is an easy way to get started. Install it before you
 install rsas.</p>
 </div>
+<div class="section" id="getting-rsas">
+<h2>Getting rsas<a class="headerlink" href="#getting-rsas" title="Permalink to this headline">¶</a></h2>
+<p>rsas is available from github: <a class="reference external" href="https://github.com/charman2/rsas">https://github.com/charman2/rsas</a></p>
+<p>The repository is currently private, so only collaborators can access it. Please
+do not share the source code before I release it.</p>
+<p>The code can be downloaded zipped, but a git clone is recommended so updates
+can be provided as they are developed.</p>
+</div>
 <div class="section" id="installation">
 <h2>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h2>
 <p>The main part of the code is written in Cython to allow fast execution. Before
@@ -73,9 +81,10 @@ unless this code is changed.</p>
 </div>
 <div class="section" id="examples">
 <h2>Examples<a class="headerlink" href="#examples" title="Permalink to this headline">¶</a></h2>
-<p>Example uses of rsas are available:</p>
-<div class="section" id="examples-simple-timestepping-py">
-<h3>examples/simple_timestepping.py<a class="headerlink" href="#examples-simple-timestepping-py" title="Permalink to this headline">¶</a></h3>
+<p>Example uses of rsas are available in the ./examples directory. These should
+run right out of the box.</p>
+<div class="section" id="simple-timestepping-py">
+<h3>simple_timestepping.py<a class="headerlink" href="#simple-timestepping-py" title="Permalink to this headline">¶</a></h3>
 <div class="highlight-python"><div class="highlight"><pre><span class="c"># -*- coding: utf-8 -*-</span>
 <span class="sd">&quot;&quot;&quot;Storage selection (SAS) functions: simple example</span>
 
@@ -120,7 +129,7 @@ unless this code is changed.</p>
 <span class="n">Q_rSAS_fun_type</span> <span class="o">=</span> <span class="s">&#39;from_steady_state_TTD&#39;</span>
 <span class="n">TT_CDF</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s">&#39;example_steady_state_TTD.csv&#39;</span><span class="p">,</span> <span class="n">names</span><span class="o">=</span><span class="s">&#39;P&#39;</span><span class="p">)</span>
 <span class="n">Q_rSAS_fun_parameters</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">TT_CDF</span><span class="p">),</span><span class="mi">1</span><span class="p">))</span>
-<span class="n">Q_rSAS_fun_parameters</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">5.72</span>
+<span class="n">Q_rSAS_fun_parameters</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">5.72</span> <span class="c"># steady-state flow rate</span>
 <span class="n">Q_rSAS_fun_parameters</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">TT_CDF</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span><span class="mi">0</span><span class="p">]</span>
 <span class="n">rSAS_fun_Q</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">create_function</span><span class="p">(</span><span class="n">Q_rSAS_fun_type</span><span class="p">,</span> <span class="n">Q_rSAS_fun_parameters</span><span class="p">)</span>
 <span class="c"># =================</span>
@@ -146,8 +155,8 @@ unless this code is changed.</p>
 </pre></div>
 </div>
 </div>
-<div class="section" id="examples-lower-hafren-py">
-<h3>examples/lower_hafren.py<a class="headerlink" href="#examples-lower-hafren-py" title="Permalink to this headline">¶</a></h3>
+<div class="section" id="lower-hafren-py">
+<h3>lower_hafren.py<a class="headerlink" href="#lower-hafren-py" title="Permalink to this headline">¶</a></h3>
 <div class="highlight-python"><div class="highlight"><pre><span class="c"># -*- coding: utf-8 -*-</span>
 <span class="sd">&quot;&quot;&quot;Storage selection (SAS) functions: Lower Hafren example</span>
 
@@ -528,10 +537,11 @@ timestep</dd>
 <li><a class="reference internal" href="#">Documentation of the rsas library</a></li>
 <li><a class="reference internal" href="#getting-started">Getting started</a><ul>
 <li><a class="reference internal" href="#before-you-install">Before you install</a></li>
+<li><a class="reference internal" href="#getting-rsas">Getting rsas</a></li>
 <li><a class="reference internal" href="#installation">Installation</a></li>
 <li><a class="reference internal" href="#examples">Examples</a><ul>
-<li><a class="reference internal" href="#examples-simple-timestepping-py">examples/simple_timestepping.py</a></li>
-<li><a class="reference internal" href="#examples-lower-hafren-py">examples/lower_hafren.py</a></li>
+<li><a class="reference internal" href="#simple-timestepping-py">simple_timestepping.py</a></li>
+<li><a class="reference internal" href="#lower-hafren-py">lower_hafren.py</a></li>
 </ul>
 </li>
 </ul>

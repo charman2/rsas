@@ -22,6 +22,17 @@ The Anaconda package (https://store.continuum.io/cshop/anaconda/) contains all
 the needed pieces, and is an easy way to get started. Install it before you
 install rsas.
 
+Getting rsas
+************
+
+rsas is available from github: https://github.com/charman2/rsas
+
+The repository is currently private, so only collaborators can access it. Please
+do not share the source code before I release it.
+
+The code can be downloaded zipped, but a git clone is recommended so updates
+can be provided as they are developed.
+
 Installation
 ************
 
@@ -40,14 +51,15 @@ unless this code is changed.
 Examples
 ********
 
-Example uses of rsas are available:
+Example uses of rsas are available in the ./examples directory. These should 
+run right out of the box.
 
-examples/simple_timestepping.py
+simple_timestepping.py
 -------------------------------
 
 .. literalinclude:: ../examples/simple_timestepping.py
 
-examples/lower_hafren.py
+lower_hafren.py
 ------------------------
 
 .. literalinclude:: ../examples/lower_hafren.py
