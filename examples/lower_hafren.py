@@ -26,7 +26,8 @@ import pandas as pd
 # =====================================
 # Load the data
 data = pd.read_csv('lower_hafren_data.csv', index_col=0, parse_dates=True)
-data = data[:1000]
+# Uncomment the following line if you want to just run the first 2000 days
+# data = data[:2000]
 N = len(data)
 # Estimate ET from FAO reference evapotranspiration as ET = k_E * ETO, where
 # k_E is chosen to ensurelong-term mass balance.
@@ -73,8 +74,8 @@ Q = data['Q water flux mm/day'].values
 ET = data['ET water flux mm/day'].values
 C_in = data['P+occult Cl mg/l'].values
 # Run it
-outputs = rsas.solve(J, [Q, ET], [rSAS_fun_Q, rSAS_fun_ET], ST_init=ST_init,
-                     dt = 1., n_substeps=1, n_iterations=4)
+outputs = rsas.solve(J, [Q, ET], [rSAS_fun_Q, rSAS_fun_ET], ST_init=ST_init, 
+                     mode='age', dt = 1., n_substeps=1, n_iterations=4)
 # Let's pull these out to make the outputs from rsas crystal clear
 PQ = outputs['PQ'][0]
 thetaQ = outputs['thetaQ'][0]
