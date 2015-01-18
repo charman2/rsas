@@ -42,7 +42,7 @@ C_old = np.mean(data['Peff Cl mg/l'] * data['P Cl mg/l'])/data['Peff Cl mg/l'].m
 Q_rSAS_fun_type = 'from_steady_state_TTD'
 TT_CDF = pd.read_csv('example_steady_state_TTD.csv', names='P')
 Q_rSAS_fun_parameters = np.zeros((len(TT_CDF),1))
-Q_rSAS_fun_parameters[0,0] = 5.72
+Q_rSAS_fun_parameters[0,0] = 5.72 # steady-state flow rate
 Q_rSAS_fun_parameters[1:,0] = TT_CDF.values[1:,0]
 rSAS_fun_Q = rsas.create_function(Q_rSAS_fun_type, Q_rSAS_fun_parameters)
 # =================
