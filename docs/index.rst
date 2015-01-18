@@ -6,47 +6,70 @@
 Documentation of the rsas library
 =================================
 
-The rsas theory is described in:
+This library allows you to model transport through arbitrary control volumes using
+rank StorAge Selection (rSAS) functions.
+
+
+Getting started
+===============
+
+Before you install
+******************
+
+rsas depends on the Python libraries numpy, scipy, and cython, and the example
+codes use pandas to wrangle the timeseries data. These must all be installed.
+The Anaconda package (https://store.continuum.io/cshop/anaconda/) contains all
+the needed pieces, and is an easy way to get started. Install it before you
+install rsas.
+
+Installation
+************
+
+The main part of the code is written in Cython to allow fast execution. Before
+you use rsas you must comile and install it. Open a terminal in the rsas directory
+and run:
+
+> python setup.py install
+
+It may take a few minutes. You may get warning messages, all of which can be ignored.
+Error messages cannot though, and will prevent the compilation from completion.
+
+Once the code has compiled successfully you don't need to do it again
+unless this code is changed.
+
+Examples
+********
+
+Example uses of rsas are available:
+
+examples/simple_timestepping.py
+-------------------------------
+
+.. literalinclude:: ../examples/simple_timestepping.py
+
+examples/lower_hafren.py
+------------------------
+
+.. literalinclude:: ../examples/lower_hafren.py
+
+Further reading
+===============
+
+The rSAS theory is described in:
 
 Harman, C. J. (2014), Time-variable transit time distributions and transport:
 Theory and application to storage-dependent transport of chloride in a watershed,
 Water Resour. Res., 51, doi:10.1002/2014WR015707.
 
-The code in _rsas.pyx contains three slightly different implementations of the model.
 
-rsas.solve_all_by_age_2out
-    This is the original implementation used to generate the results in the paper.
-    It solves for two outputs (Q1 and Q2, which might be discharge and ET) using
-    an algorithm with an outer loop over all ages, and vectorized calculations over
-    all times. It is slightly faster than the other implementations, but is more
-    memory intensive. Unlike the others though, there is no option to calculate 
-    output concentration timeseries inline. The calculated transit time
-    distributions must be used to perform the convolutions after the code has 
-    completed.
-   
-rsas.solve_all_by_time_2out
-    Solution is found by looping over times, with all age calculations
-    vectorized. Slower, but easier to understand and build on than 
-    solve_all_by_age_2out. Includes option to determine output concentrations
-    from a given input concentration progressively.
-   
-rsas.solve_all_by_time_1out
-    Same as solve_all_by_time_2out, but for only one flux out (Q1). 
-    
-The end of the code gives class definitions for different rSAS functional forms.
-These can be expanded with more definitions. The function rSAS_setup selects 
-the requested functional form (using an identifier string) and initializes an
-instance.
-
-Documentation for the Code
+Documentation for the code
 **************************
 
-.. automodule:: _rsas
-   :members:
+.. automodule:: rsas
+   :members: solve, create_function, transport, transport_with_evapoconcentration
 
 .. toctree::
    :maxdepth: 2
-
 
 
 Indices and tables

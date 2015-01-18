@@ -1,3 +1,4 @@
 build/
 rsas.egg-info/
 dist/
+*.pyc

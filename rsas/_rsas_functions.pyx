@@ -1,7 +1,7 @@
 # cython: profile=True
 # -*- coding: utf-8 -*-
 """
-.. module:: rsas
+.. module:: _rsas_functions
    :platform: Unix, Windows
    :synopsis: Time-variable transport using storage selection (SAS) functions
 
@@ -24,6 +24,7 @@ from scipy.special import erfc
 from scipy.interpolate import interp1d
 from scipy.optimize import fmin, minimize_scalar, fsolve
 import time        
+import rsas._util
 
 # for debugging
 debug = True
@@ -34,68 +35,61 @@ def _verbose(statement):
     if debug:
         print statement
 
-def rSAS_setup(rSAS_type, np.ndarray[dtype_t, ndim=2] params):
+def create_function(rSAS_type, np.ndarray[dtype_t, ndim=2] params):
     """Initialize an rSAS function
 
-    Parameters
-    ----------
-    rSAS_type : str
-        A string indicating the requested rSAS functional form.
-    params : n x k float64 ndarray
-        Parameters for the rSAS function. The number of columns and 
-        their meaning depends on which rSAS type is chosen. For all the rSAS 
-        functions implemented so far, each row corresponds with a timestep.
+    Args:
+        rSAS_type : str
+            A string indicating the requested rSAS functional form.
+        params : n x k float64 ndarray
+            Parameters for the rSAS function. The number of columns and 
+            their meaning depends on which rSAS type is chosen. For all the rSAS 
+            functions implemented so far, each row corresponds with a timestep.
 
-    Returns
-    ----------
-    rSAS_fun : rSASFunctionClass
-        An rsas function of the chosen type
+    Returns:
+        rSAS_fun : rSASFunctionClass
+            An rSAS function of the chosen type
         
     The created function object will have methods that vary between types. All
-    must have a constructor ("__init__") and two methods cdf_all and cdf_i.
+    must have a constructor ("__init__") and two methods cdf_all and cdf_i. See
+    the documentation for rSASFunctionClass for more information.
     
-    Implemented rSAS functions
-    --------------------------
-    Available choices for rSAS_type, and description of parameter array.
+    Available choices for rSAS_type, and a description of parameter array, are below.
     These all take one parameter set (row) per timestep:
     
-    'uniform'
-        Uniform distribution over the range [a, b].
-            Q_params[:, 0] : a
-            Q_params[:, 1] : b
-    'gamma'
-        Gamma distribution
-            Q_params[:, 0] : shift parameter
-            Q_params[:, 1] : scale parameter
-            Q_params[:, 2] : shape parameter
-    'gamma_trunc'
-        Gamma distribution, truncated at a maximum value
-            Q_params[:, 0] : shift parameter
-            Q_params[:, 1] : scale parameter
-            Q_params[:, 2] : shape parameter
-            Q_params[:, 3] : maximum value
-    'SS_invgauss'
-        Produces analytical solution to the advection-dispersion equation
+    'uniform' : Uniform distribution over the range [a, b].
+            * ``Q_params[:, 0]`` = a
+            * ``Q_params[:, 1]`` = b
+    'gamma': Gamma distribution
+            * ``Q_params[:, 0]`` = shift parameter
+            * ``Q_params[:, 1]`` = scale parameter
+            * ``Q_params[:, 2]`` = shape parameter
+    'gamma_trunc' : Gamma distribution, truncated at a maximum value
+            * ``Q_params[:, 0]`` = shift parameter
+            * ``Q_params[:, 1]`` = scale parameter
+            * ``Q_params[:, 2]`` = shape parameter
+            * ``Q_params[:, 3]`` = maximum value
+    'SS_invgauss' : Produces analytical solution to the advection-dispersion equation
         (inverse Gaussian distribution) under steady-state flow.
-            Q_params[:, 0] : scale parameter
-            Q_params[:, 1] : Peclet number
-    'SS_mobileimmobile'
-        Produces analytical solution to the advection-dispersion equation with
+            * ``Q_params[:, 0]`` = scale parameter
+            * ``Q_params[:, 1]`` = Peclet number
+    'SS_mobileimmobile' : Produces analytical solution to the advection-dispersion equation with
         linear mobile-immobile zone exchange under steady-state flow.
-            Q_params[:, 0] : scale parameter
-            Q_params[:, 1] : Peclet number
-            Q_params[:, 2] : beta parameter
+            * ``Q_params[:, 0]`` = scale parameter
+            * ``Q_params[:, 1]`` = Peclet number
+            * ``Q_params[:, 2]`` = beta parameter
+    'from_steady_state_TTD' : rSAS function constructed to reproduce a given transit time distribution
+        at steady flow. Assumes timestep is dt=1.
+            * ``Q_params[0, 0]`` = Steady flow rate
+            * ``Q_params[1:, 0]`` = Steady-state transit time distribution, from T = dt.
     """
-    if rSAS_type == 'gamma':
-        return gamma_rSAS(params)
-    elif rSAS_type == 'gamma_trunc':
-        return gamma_trunc_rSAS(params)
-    elif rSAS_type == 'SS_invgauss':
-        return SS_invgauss_rSAS(params)
-    elif rSAS_type == 'SS_mobileimmobile':
-        return SS_mobileimmobile_rSAS(params)
-    elif rSAS_type == 'uniform':
-        return uniform_rSAS(params)
+    function_dict = {'gamma':_gamma_rSAS,
+                     'gamma_trunc':_gamma_trunc_rSAS,
+                     'SS_invgauss':_SS_invgauss_rSAS,
+                     'SS_mobileimmobile':_SS_mobileimmobile_rSAS,
+                     'uniform':_uniform_rSAS,
+                     'from_steady_state_TTD':_from_steady_state_TTD_rSAS}
+    return function_dict[rSAS_type](params)
         
 class rSASFunctionClass:
     """Base class for constructing rSAS functions
@@ -118,13 +112,13 @@ class rSASFunctionClass:
         parameter values on row i.
     """
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
-        print "__init__ not constructed!"
+        raise NotImplementedError('__init__ not implemented in derived rSASFunctionClass')
     def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
-        print "cdf_all not constructed!"
+        raise NotImplementedError('cdf_all not implemented in derived rSASFunctionClass')
     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
-        print "cdf_i not constructed!"
+        raise NotImplementedError('cdf_i not implemented in derived rSASFunctionClass')
     
-class uniform_rSAS(rSASFunctionClass):
+class _uniform_rSAS(rSASFunctionClass):
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
         self.a = params[:,0]
         self.b = params[:,1]
@@ -136,7 +130,7 @@ class uniform_rSAS(rSASFunctionClass):
     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
         return np.where(np.logical_and(ST >= self.a[i], ST <= self.b[i]), self.lam[i] * (ST - self.a[i]), 1.)
 
-class gamma_rSAS(rSASFunctionClass): 
+class _gamma_rSAS(rSASFunctionClass): 
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
         self.shift = params[:,0]
         self.scale = params[:,1]
@@ -150,7 +144,7 @@ class gamma_rSAS(rSASFunctionClass):
     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
         return np.where(ST-self.shift[i] > 0, gammainc(self.a[i], self.lam[i]*(ST-self.shift[i])), 0.)
         
-class gamma_trunc_rSAS(rSASFunctionClass): 
+class _gamma_trunc_rSAS(rSASFunctionClass): 
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
         self.shift = params[:,0]
         self.scale = params[:,1]
@@ -166,7 +160,7 @@ class gamma_trunc_rSAS(rSASFunctionClass):
     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
         return np.where(ST-self.shift[i] > 0, gammainc(self.a[i], self.lam[i]*(np.minimum(ST, self.max[i])-self.shift[i]))*self.rescale[i], 0.)
 
-class SS_invgauss_rSAS(rSASFunctionClass):
+class _SS_invgauss_rSAS(rSASFunctionClass):
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
         self.scale = params[:,0]
         self.Pe = params[:,1]
@@ -217,7 +211,7 @@ class SS_invgauss_rSAS(rSASFunctionClass):
                 return_cdf[j] = self.Omega(ST[j]/self.scale[i])
         return return_cdf
 
-class SS_mobileimmobile_rSAS(rSASFunctionClass):
+class _SS_mobileimmobile_rSAS(rSASFunctionClass):
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
         self.S_Mob = params[:,0]
         self.Pe = params[:,1]
@@ -289,3 +283,16 @@ class SS_mobileimmobile_rSAS(rSASFunctionClass):
             else:
                 return_cdf[j] = self.Omega(ST[j])
         return return_cdf
+
+class _from_steady_state_TTD_rSAS(rSASFunctionClass):
+    def __init__(self, np.ndarray[dtype_t, ndim=2] params):
+        self.Q0 = params[0,0]
+        self.CDF = params[:,0]
+        self.CDF[0] = 0.
+        self.ST = rsas._util.steady_state_ST_from_TTD_1out(self.Q0, self.CDF, dt=1)
+        self.rSAS_unsorted = interp1d(self.ST, self.CDF, bounds_error=False, fill_value=1., assume_sorted=False)
+        self.rSAS_sorted = interp1d(self.ST, self.CDF, bounds_error=False, fill_value=1., assume_sorted=True)
+    def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
+        return self.rSAS_unsorted(ST)
+    def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
+        return self.rSAS_sorted(ST)

@@ -15,8 +15,9 @@ watershed, Water Resour. Res., doi:10.1002/2014WR015707.
 Installation
 =================
 
-The rSAS.pyx code is written in Cython to allow fast execution. Before you run it,
-open a terminal in this directory and run:
+The main part of the code is written in Cython to allow fast execution. Before
+you use rsas you must comile and install it. Open a terminal in this directory
+and run:
 
 > python setup.py install
 
@@ -30,4 +31,4 @@ unless this code is changed.
 Documentation
 =================
 
-See the code documentation and docstrings for more information
+See the documentation in rsas/docs/_build/html/index.html for more information.
