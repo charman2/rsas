@@ -7,7 +7,9 @@ def steady_state_ST_from_TTD_1out(Q, TTD_CDF, dt=1):
     
     At a given steady state flux rate Q, the age-ranked storage is given by:
     
-    $$S_T = Q_0\left(T-\int_0^T\Pb{Q}(\tau)d\tau\right)$$
+    $$S_T = Q_0\left(T-\int_0^TP_{Q}(\tau)d\tau\right)$$
+    
+    Where $P_Q(\tau)$ is a steady-state transit time distribution at steady-state flux $Q_0$.
     
     Parameters:
     -----------
@@ -27,7 +29,9 @@ def steady_state_ST_from_TTD_2out(TTD_CDF1, Q1, TTD_CDF2, Q2, dt=1):
     
     At a given steady state flux rate Q, the age-ranked storage is given by:
     
-    $$S_T = Q_0\left(T-\int_0^T\Pb{Q}(\tau)d\tau\right)$$
+    $$S_T = (Q_1+Q_2)T-Q_1\int_0^TP_{Q_1}(\tau)-Q_2\int_0^TP_{Q_2}(\tau)d\tau$$
+    
+    Where $P_{Q_1}(\tau)$, $P_{Q_2}(\tau)$ are a steady-state transit time distribution at steady-state fluxs $Q_1$ and $Q_2$.
     
     Parameters:
     -----------
@@ -75,10 +79,8 @@ def transport(PQ, C_in, C_old):
     N = len(C_in)
     C_in=np.array(C_in)
     PQ = np.array(PQ)
-    thetaQ = np.array(thetaQ)
-    thetaS = np.array(thetaS)
     C_mod_raw = np.zeros(N, dtype=np.float64)
-    pQe = np.where(thetaQ[1:,1:]>0, np.diff(PQ[:,1:],axis=0)/(thetaS[1:,1:] + thetaQ[1:,1:]), 0.)
+    pQe = np.diff(PQ[:,1:],axis=0)
     code = r"""
     int i, j, k;
     for(j=0; j<N; j++)

@@ -120,6 +120,7 @@ class rSASFunctionClass:
     
 class _uniform_rSAS(rSASFunctionClass):
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
+        params = params.copy()
         self.a = params[:,0]
         self.b = params[:,1]
         self.lam = 1.0/(self.b-self.a)
@@ -132,6 +133,7 @@ class _uniform_rSAS(rSASFunctionClass):
 
 class _gamma_rSAS(rSASFunctionClass): 
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
+        params = params.copy()
         self.shift = params[:,0]
         self.scale = params[:,1]
         self.a = params[:,2]
@@ -146,6 +148,7 @@ class _gamma_rSAS(rSASFunctionClass):
         
 class _gamma_trunc_rSAS(rSASFunctionClass): 
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
+        params = params.copy()
         self.shift = params[:,0]
         self.scale = params[:,1]
         self.a = params[:,2]
@@ -162,6 +165,7 @@ class _gamma_trunc_rSAS(rSASFunctionClass):
 
 class _SS_invgauss_rSAS(rSASFunctionClass):
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
+        params = params.copy()
         self.scale = params[:,0]
         self.Pe = params[:,1]
         self.lastx = np.zeros(len(params))
@@ -213,6 +217,7 @@ class _SS_invgauss_rSAS(rSASFunctionClass):
 
 class _SS_mobileimmobile_rSAS(rSASFunctionClass):
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
+        params = params.copy()
         self.S_Mob = params[:,0]
         self.Pe = params[:,1]
         self.beta = params[:,2]
@@ -286,6 +291,7 @@ class _SS_mobileimmobile_rSAS(rSASFunctionClass):
 
 class _from_steady_state_TTD_rSAS(rSASFunctionClass):
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
+        params = params.copy()
         self.Q0 = params[0,0]
         self.CDF = params[:,0]
         self.CDF[0] = 0.
