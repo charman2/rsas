@@ -601,6 +601,7 @@ def _solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
             dSTp[0] = J[i+1] * dt
             # This vale is never used
             pQ1p[0] = 0
+	#DANO TO MAKE FIX
         # Progressive evaluation of outflow concentration
         if C_in is not None:
             C_out[i] = np.sum(pQ1u[:i+1] * C_in[i::-1])
