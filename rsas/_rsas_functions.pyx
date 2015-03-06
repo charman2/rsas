@@ -124,12 +124,10 @@ class _uniform_rSAS(rSASFunctionClass):
         self.a = params[:,0]
         self.b = params[:,1]
         self.lam = 1.0/(self.b-self.a)
-    def pdf(self, np.ndarray[dtype_t, ndim=1] ST):
-        return np.where(ST <= self.scale, self.lam, 0.)
     def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
-        return np.where(np.logical_and(ST >= self.a, ST <= self.b), self.lam * (ST - self.a), 1.)
+        return np.where(ST >= self.a, np.where(ST <= self.b,  self.lam * (ST - self.a), 1.), 0.)
     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
-        return np.where(np.logical_and(ST >= self.a[i], ST <= self.b[i]), self.lam[i] * (ST - self.a[i]), 1.)
+        return np.where(ST >= self.a[i], np.where(ST <= self.b[i], self.lam[i] * (ST - self.a[i]), 1.), 0.)
 
 class _gamma_rSAS(rSASFunctionClass): 
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
