@@ -567,7 +567,7 @@ def _solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
         ST[:,0] = ST_init[:]
         PQ1[:,0] = rSAS_fun1.cdf_i(ST_init, 0)
     start_time = time.clock()
-    _verbose('...solving with dcw edits...')
+    _verbose('...solving...')
     # Primary solution loop over time t
     for i in range(timeseries_length):
         # dSTp is the increments of ST at the previous age and previous timestep.
