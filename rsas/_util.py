@@ -139,3 +139,66 @@ def transport_with_evapoconcentration(PQ, thetaQ, thetaS, C_in, C_old):
     observed_fraction = np.diag(PQ[1:,1:]).copy()
     C_mod = (C_mod_raw + (1-observed_fraction) * C_old)
     return C_mod, C_mod_raw, observed_fraction
+
+def transport_with_evapoconcentration_1st_order_reaction(PQ, thetaQ, thetaS, C_in, 
+                                                         C_old, k1=0.0, C_eq=0.0, C_sur=0.0):
+    """Apply a time-varying transit time distribution to an input concentration timseries.
+    Simulating a first order revisible reaction with reaction rate k1 towards
+    the equilibrium concentration C_eq.  Allow for a surface concentration C_sur added to 
+    the input concentration at T=0.
+
+    Args:
+        PQ : numpy float64 2D array, size N+1 x N+1
+            The CDF of the backwards transit time distribution P_Q1(T,t)
+        thetaQ, thetaS : numpy float64 2D array, size N+1 x N+1
+            Partial partition functions for discharge and storage
+        C_in : numpy float64 1D array, length N.
+            Timestep-averaged inflow concentration.
+        C_old : numpy float64 1D array, length N.
+            Concentration to be assumed for portion of outflows older than initial
+            timestep
+        k1 : float (default=0.0)
+            1st order rate of reaction (reversible) during transport
+        C_eq : float (default=0.0)
+            equilibrium concentration for 1st order reaction.
+        C_sur : float (default=0.0)
+            "instantaneous" additional concentration added at t=0.  
+            This may capture reactions occuring on timescales less than dt.
+        
+            
+
+    Returns:
+        C_out : numpy float64 1D array, length N.
+            Timestep-averaged outflow concentration.
+        C_mod_raw : numpy float64 1D array, length N.
+            Timestep-averaged outflow concentration, prior to correction with C_old.
+        observed_fraction : numpy float64 1D array, length N.
+            Fraction of outflow older than the first timestep
+    """
+
+    N = len(C_in)
+    ageT=np.arange(N)  #define age array
+    C_in=np.array(C_in)
+    C_in_sur=C_in+C_sur  #add surface concentration
+    C_temp1=np.exp(-k1*ageT) #intermediate term #1
+    C_temp2=C_eq*(1.-C_temp1)
+    PQ = np.array(PQ)
+    thetaQ = np.array(thetaQ)
+    thetaS = np.array(thetaS)
+    C_mod_raw = np.zeros(N, dtype=np.float64)
+    pQe = np.where(thetaQ[1:,1:]>0, np.diff(PQ[:,1:],axis=0)/(thetaS[1:,1:] + thetaQ[1:,1:]), 0.)
+    code = r"""
+    int i, j, k;
+    for(j=0; j<N; j++)
+        for(i=0; i<j; i++)
+            {
+            k = j - i;
+            C_mod_raw(j) += C_in(k) * C_temp1(i) * pQe(i,j) + C_temp2(i) * pQe(i,j);
+            }
+    """
+    scipy.weave.inline(code, arg_names=['C_mod_raw', 'C_in', 'pQe', 'N', 'C_temp1', 'C_temp2'], type_converters = scipy.weave.converters.blitz)
+    observed_fraction = np.diag(PQ[1:,1:]).copy()
+    C_mod = (C_mod_raw + (1-observed_fraction) * C_old)
+    return C_mod, C_mod_raw, observed_fraction
+    
+    
