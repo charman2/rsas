@@ -561,7 +561,7 @@ def _solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
     # Now we solve the governing equation
     # Set up initial and boundary conditions
     dSTp[0] = J[0] * dt
-    dSTp[:] = np.diff(ST_init)
+    dSTp[1:max_age] = np.diff(ST_init[:max_age]) #ADDED
     pQ1p[:] = np.diff(rSAS_fun1.cdf_i(ST_init, 0))
     if full_outputs:
         ST[:,0] = ST_init[:]
@@ -572,7 +572,10 @@ def _solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
     for i in range(timeseries_length):
         # dSTp is the increments of ST at the previous age and previous timestep.
         # It is therefore our first estimate of the increments of ST at this
-        # age and timestep. Use this estimate to get an initial estimate of the 
+        # age and timestep. 
+        STu[0]=0 #ADDED
+        STu[1:max_age+1]=np.cumsum(dSTp) #ADDED
+        #Use this estimate to get an initial estimate of the 
         # transit time distribution PDF, pQ1
         pQ1u[0] = rSAS_fun1.cdf_i(dSTp[:1], i)
         pQ1u[1:max_age] = np.diff(rSAS_fun1.cdf_i(np.cumsum(dSTp), i))
@@ -586,6 +589,7 @@ def _solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
             # Update the estimate of dST and the TTD PDF to
             # account for the outflow
             dSTu[:max_age] = np.maximum(dSTp - dt * dQ1outu - dt * dQ2outu, 0.)
+            STu[1:max_age+1] = np.cumsum(dSTu) #ADDED
             pQ1u[0] = rSAS_fun1.cdf_i(dSTu[:1], i)
             pQ1u[1:max_age] = np.diff(rSAS_fun1.cdf_i(np.cumsum(dSTu), i))
         # Update the 'previous solution' record in preparation of the
@@ -597,6 +601,7 @@ def _solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
             dSTp[0] = J[i+1] * dt
             # This vale is never used
             pQ1p[0] = 0
+	#DANO TO MAKE FIX
         # Progressive evaluation of outflow concentration
         if C_in is not None:
             C_out[i] = np.sum(pQ1u[:i+1] * C_in[i::-1])
