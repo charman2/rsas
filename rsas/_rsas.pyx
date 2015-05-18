@@ -85,7 +85,7 @@ def solve(J, Q, rSAS_fun, mode='time', ST_init = None, dt = 1, n_substeps = 1,
             in Harman (2015) was very fast, and n_iterations=3 was adequate (also 
             the default value here)
         full_outputs : bool (default True)
-            (mode='time' only) Option to return the full state variables array ST the cumulative
+            Option to return the full state variables array ST the cumulative
             transit time distributions PQ1, PQ2, and other variables
         C_in : n x 1 float64 ndarray (default None)
             Optional timeseries of inflow concentrations to convolved
