@@ -96,7 +96,7 @@ def transport(PQ, C_in, C_old):
     return C_mod, C_mod_raw, observed_fraction
 
     
-def transport_with_evapoconcentration(PQ, thetaQ, thetaS, C_in, C_old):
+def transport_with_evapoconcentration(PQ, thetaQ, thetaS, C_in, C_old, observed_fraction_on_diagonal=True):
     """Apply a time-varying transit time distribution to an input concentration timseries
 
     Args:
@@ -109,6 +109,11 @@ def transport_with_evapoconcentration(PQ, thetaQ, thetaS, C_in, C_old):
         C_old : numpy float64 1D array, length N.
             Concentration to be assumed for portion of outflows older than initial
             timestep
+        observed_fraction_on_diagonal : Boolean
+            Location of the observed fraction. 'True' (default) assumes observed
+            fraction is on the diagonal of the PQ matrix. This is appropriate
+            if no initial condition for ST is given. Otherwise use 'False' to 
+            use the oldest value of T for which PQ is given (i.e. the last row)
 
     Returns:
         C_out : numpy float64 1D array, length N.
@@ -136,6 +141,9 @@ def transport_with_evapoconcentration(PQ, thetaQ, thetaS, C_in, C_old):
             }
     """
     scipy.weave.inline(code, arg_names=['C_mod_raw', 'C_in', 'pQe', 'N'], type_converters = scipy.weave.converters.blitz)
-    observed_fraction = np.diag(PQ[1:,1:]).copy()
+    if observed_fraction_on_diagonal:
+        observed_fraction = np.diag(PQ[1:, 1:]).copy()
+    else:
+        observed_fraction = PQ[-1, 1:].copy()
     C_mod = (C_mod_raw + (1-observed_fraction) * C_old)
     return C_mod, C_mod_raw, observed_fraction
