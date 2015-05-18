@@ -290,10 +290,9 @@ outer loop of the numerical solution</p>
 <dt><code class="docutils literal"><span class="pre">mode='age'</span></code></dt>
 <dd>This is the original implementation used to generate the results in the paper.
 It is slightly faster than the &#8216;time&#8217; implementation, but doesn&#8217;t have the
-memory-saving &#8220;full_outputs=False&#8221; option. Only implemented for two
-outfluxes, and there is no option to calculate 
+memory-saving &#8220;full_outputs=False&#8221; option. There is no option to calculate 
 output concentration timeseries inline. The calculated transit time
-distributions must convolved with an imput concentration timeseries after the code has 
+distributions must convolved with an input concentration timeseries after the code has 
 completed.</dd>
 <dt><code class="docutils literal"><span class="pre">mode='time'</span></code></dt>
 <dd>Slower, but easier to understand and build on than the &#8216;age&#8217; mode.
@@ -319,16 +318,18 @@ solution. Default is 1, which is also the value used in Harman (2015)</dd>
 in Harman (2015) was very fast, and n_iterations=3 was adequate (also 
 the default value here)</dd>
 <dt>full_outputs <span class="classifier-delimiter">:</span> <span class="classifier">bool (default True)</span></dt>
-<dd>(mode=&#8217;time&#8217; only) Option to return the full state variables array ST the cumulative
+<dd>Option to return the full state variables array ST the cumulative
 transit time distributions PQ1, PQ2, and other variables</dd>
 <dt>C_in <span class="classifier-delimiter">:</span> <span class="classifier">n x 1 float64 ndarray (default None)</span></dt>
-<dd>(mode=&#8217;time&#8217; only) Optional timeseries of inflow concentrations to convolved progressively
+<dd>Optional timeseries of inflow concentrations to convolved
 with the computed transit time distribution for the first flux in Q</dd>
 <dt>C_old <span class="classifier-delimiter">:</span> <span class="classifier">float (default None)</span></dt>
-<dd>(mode=&#8217;time&#8217; only) Optional concentration of the &#8216;unobserved fraction&#8217; of Q (from inflows 
-prior to the start of the simulation) for correcting C_out</dd>
+<dd>Optional concentration of the &#8216;unobserved fraction&#8217; of Q (from inflows 
+prior to the start of the simulation) for correcting C_out. If ST_init is not given 
+or set to all zeros, the unobserved fraction will be assumed to lie on the 
+diagonal of the PQ matrix. Otherwise it will be assumed to be the bottom row.</dd>
 <dt>evapoconcentration <span class="classifier-delimiter">:</span> <span class="classifier">bool (default False)</span></dt>
-<dd>(mode=&#8217;time&#8217; only) If True, it will be assumed that species in C_in are not removed 
+<dd>If True, it will be assumed that species in C_in are not removed 
 by the second flux, and instead become increasingly concentrated in
 storage.</dd>
 </dl>
@@ -482,7 +483,7 @@ timestep</dd>
 
 <dl class="function">
 <dt id="rsas.transport_with_evapoconcentration">
-<code class="descclassname">rsas.</code><code class="descname">transport_with_evapoconcentration</code><span class="sig-paren">(</span><em>PQ</em>, <em>thetaQ</em>, <em>thetaS</em>, <em>C_in</em>, <em>C_old</em><span class="sig-paren">)</span><a class="headerlink" href="#rsas.transport_with_evapoconcentration" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">rsas.</code><code class="descname">transport_with_evapoconcentration</code><span class="sig-paren">(</span><em>PQ</em>, <em>thetaQ</em>, <em>thetaS</em>, <em>C_in</em>, <em>C_old</em>, <em>observed_fraction_on_diagonal=True</em><span class="sig-paren">)</span><a class="headerlink" href="#rsas.transport_with_evapoconcentration" title="Permalink to this definition">¶</a></dt>
 <dd><p>Apply a time-varying transit time distribution to an input concentration timseries</p>
 <dl class="docutils">
 <dt>Args:</dt>
@@ -496,6 +497,11 @@ timestep</dd>
 <dt>C_old <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 1D array, length N.</span></dt>
 <dd>Concentration to be assumed for portion of outflows older than initial
 timestep</dd>
+<dt>observed_fraction_on_diagonal <span class="classifier-delimiter">:</span> <span class="classifier">Boolean</span></dt>
+<dd>Location of the observed fraction. &#8216;True&#8217; (default) assumes observed
+fraction is on the diagonal of the PQ matrix. This is appropriate
+if no initial condition for ST is given. Otherwise use &#8216;False&#8217; to 
+use the oldest value of T for which PQ is given (i.e. the last row)</dd>
 </dl>
 </dd>
 <dt>Returns:</dt>
