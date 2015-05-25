@@ -26,7 +26,7 @@ from scipy.special import erfc
 from scipy.interpolate import interp1d
 from scipy.optimize import fmin, minimize_scalar, fsolve
 import time        
-import _util
+import rsas._util
 
 # for debugging
 debug = True
@@ -171,9 +171,6 @@ def solve(J, Q, rSAS_fun, mode='time', ST_init = None, dt = 1, n_substeps = 1,
         warn('No output will be generated! Are you sure you mean to do this?')
     # Run implemented solvers
     if mode=='age':
-        if C_in is not None:
-            C_in = None
-            warn('C_in not compatible with mode==''age''. Convolution must be done separately')
         if len(Q)==1:
             result = _solve_all_by_age_1out(J, Q[0], rSAS_fun[0], 
                                           ST_init=ST_init, dt=dt,
@@ -365,9 +362,9 @@ def _solve_all_by_age_2out(
     # Evaluation of outflow concentration
     if C_in is not None:
         if evapoconcentration:
-            C_out, _, observed_fraction = _util.transport_with_evapoconcentration(PQ1, theta1, thetaS, C_in, C_old)
+            C_out, _, observed_fraction = rsas._util.transport_with_evapoconcentration(PQ1, theta1, thetaS, C_in, C_old)
         else:
-            C_out, _, observed_fraction = _util.transport(PQ1, theta1, thetaS, C_in, C_old)
+            C_out, _, observed_fraction = rsas._util.transport(PQ1, C_in, C_old)
         return C_out, ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance        
     else:
         return ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance        
@@ -489,7 +486,7 @@ def _solve_all_by_age_1out(
             _verbose('...done ' + str(i+1) + ' of ' + str(max_age) + ' in ' + str(time.clock() - start_time) + ' seconds')
     # Evaluation of outflow concentration
     if C_in is not None:
-        C_out, _, observed_fraction = _util.transport(PQ1, theta1, thetaS, C_in, C_old)
+        C_out, _, observed_fraction = rsas._util.transport(PQ1, C_in, C_old)
         return C_out, ST, PQ1, Q1out, theta1, thetaS, MassBalance
     else:
         return ST, PQ1, Q1out, theta1, thetaS, MassBalance

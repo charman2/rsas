@@ -24,7 +24,7 @@ import pandas as pd
 # Load the data
 data = pd.read_csv('lower_hafren_data.csv', index_col=0, parse_dates=True)
 # Uncomment the following line if you want to just run the first 2000 days
-# data = data[:2000]
+#data = data[:2000]
 N = len(data)
 # Calculate a (bogus) effective rainfall rate
 data['Peff water flux mm/day'] = data['Q water flux mm/day'].mean() * data['P water flux mm/day'] / data['P water flux mm/day'].mean()
