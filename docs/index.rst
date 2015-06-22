@@ -2,6 +2,14 @@
    sphinx-quickstart on Thu Jan 15 15:32:47 2015.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
+   TO UPDATE THE DOCUMENTATION:
+	- Go into sourcetree, open the rsas repo
+	- make sure you are in the right branch, and everything is committed
+	- make sure the checked-out version is installed
+	- open a terminal at rsas/docs and do $ make html
+	- Go into sourcetree, open the gh-pages repo
+	- Commit and push the changes
+	
 
 Documentation of the rsas library
 =================================

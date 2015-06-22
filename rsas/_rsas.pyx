@@ -26,6 +26,7 @@ from scipy.special import erfc
 from scipy.interpolate import interp1d
 from scipy.optimize import fmin, minimize_scalar, fsolve
 import time        
+import rsas._util
 
 # for debugging
 debug = True
@@ -58,10 +59,9 @@ def solve(J, Q, rSAS_fun, mode='time', ST_init = None, dt = 1, n_substeps = 1,
             ``mode='age'``
                 This is the original implementation used to generate the results in the paper.
                 It is slightly faster than the 'time' implementation, but doesn't have the
-                memory-saving "full_outputs=False" option. Only implemented for two
-                outfluxes, and there is no option to calculate 
+                memory-saving "full_outputs=False" option. There is no option to calculate 
                 output concentration timeseries inline. The calculated transit time
-                distributions must convolved with an imput concentration timeseries after the code has 
+                distributions must convolved with an input concentration timeseries after the code has 
                 completed.
             ``mode='time'``
                 Slower, but easier to understand and build on than the 'age' mode.
@@ -85,16 +85,18 @@ def solve(J, Q, rSAS_fun, mode='time', ST_init = None, dt = 1, n_substeps = 1,
             in Harman (2015) was very fast, and n_iterations=3 was adequate (also 
             the default value here)
         full_outputs : bool (default True)
-            (mode='time' only) Option to return the full state variables array ST the cumulative
+            Option to return the full state variables array ST the cumulative
             transit time distributions PQ1, PQ2, and other variables
         C_in : n x 1 float64 ndarray (default None)
-            (mode='time' only) Optional timeseries of inflow concentrations to convolved progressively
+            Optional timeseries of inflow concentrations to convolved
             with the computed transit time distribution for the first flux in Q
         C_old : float (default None)
-            (mode='time' only) Optional concentration of the 'unobserved fraction' of Q (from inflows 
-            prior to the start of the simulation) for correcting C_out
+            Optional concentration of the 'unobserved fraction' of Q (from inflows 
+            prior to the start of the simulation) for correcting C_out. If ST_init is not given 
+            or set to all zeros, the unobserved fraction will be assumed to lie on the 
+            diagonal of the PQ matrix. Otherwise it will be assumed to be the bottom row.
         evapoconcentration : bool (default False)
-            (mode='time' only) If True, it will be assumed that species in C_in are not removed 
+            If True, it will be assumed that species in C_in are not removed 
             by the second flux, and instead become increasingly concentrated in
             storage.
 
@@ -166,18 +168,20 @@ def solve(J, Q, rSAS_fun, mode='time', ST_init = None, dt = 1, n_substeps = 1,
     if n_iterations is not None:
         n_iterations = np.int(n_iterations)
     if full_outputs==False and C_in is None:
-        warn('No output will be generated! Are you sure you know what you''re doing?')
+        warn('No output will be generated! Are you sure you mean to do this?')
     # Run implemented solvers
     if mode=='age':
-        if C_in is not None:
-            C_in = None
-            warn('C_in not compatible with mode==''age''. Convolution must be done separately')
-        if len(Q)==2:
+        if len(Q)==1:
+            result = _solve_all_by_age_1out(J, Q[0], rSAS_fun[0], 
+                                          ST_init=ST_init, dt=dt,
+                                          n_substeps=n_substeps, n_iterations=n_iterations, C_in=C_in, C_old=C_old)
+        elif len(Q)==2:
             result = _solve_all_by_age_2out(J, Q[0], rSAS_fun[0], Q[1], rSAS_fun[1], 
                                           ST_init=ST_init, dt=dt,
-                                          n_substeps=n_substeps, n_iterations=n_iterations)
+                                          n_substeps=n_substeps, n_iterations=n_iterations, C_in=C_in, 
+                                          C_old=C_old, evapoconcentration=evapoconcentration)
         else:
-            raise NotImplementedError('mode==''age'' only implemented for 2 outflows. Include a dummy timeseries and rSAS function if you only want 1 outflow')
+            raise NotImplementedError('mode==''age'' only implemented for 1 or 2 outflows.')
     elif mode=='time':
         if len(Q)==1:
             result = _solve_all_by_time_1out(J, Q[0], rSAS_fun[0],
@@ -225,7 +229,8 @@ def _solve_all_by_age_2out(
         np.ndarray[dtype_t, ndim=1] ST_init = None, 
         dtype_t dt = 1, 
         int n_substeps = 1, 
-        int n_iterations = 3):
+        int n_iterations = 3,
+        full_outputs=True, C_in=None, C_old=None, evapoconcentration=False):
     """Private function solving the rSAS model with 2 outflows, solved using the original age-based algorithm
 
     See the docstring for rsas.solve for moreinformation
@@ -287,7 +292,7 @@ def _solve_all_by_age_2out(
     # Set up initial and boundary conditions
     dSTp[:] = Jr * dt
     dPQ1p[:] = np.where(dSTp>0., rSAS_fun1.cdf_all(dSTp), 0.)
-    dPQ1p[:] = np.where(dSTp>0., rSAS_fun2.cdf_all(dSTp), 0.)
+    dPQ2p[:] = np.where(dSTp>0., rSAS_fun2.cdf_all(dSTp), 0.)
     ST[:, 0] = ST_init[:]
     PQ1_init = rSAS_fun1.cdf_i(ST_init, 0)
     PQ2_init = rSAS_fun2.cdf_i(ST_init, 0)
@@ -354,7 +359,137 @@ def _solve_all_by_age_2out(
                                         - (ST[i+1, i+1:] - ST[i, i+1:])/dt)
         if np.mod(i+1,1000)==0:
             _verbose('...done ' + str(i+1) + ' of ' + str(max_age) + ' in ' + str(time.clock() - start_time) + ' seconds')
-    return ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance
+    # Evaluation of outflow concentration
+    if C_in is not None:
+        if evapoconcentration:
+            C_out, _, observed_fraction = rsas._util.transport_with_evapoconcentration(PQ1, theta1, thetaS, C_in, C_old)
+        else:
+            C_out, _, observed_fraction = rsas._util.transport(PQ1, C_in, C_old)
+        return C_out, ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance        
+    else:
+        return ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance        
+        
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def _solve_all_by_age_1out(
+        np.ndarray[dtype_t, ndim=1] J, 
+        np.ndarray[dtype_t, ndim=1] Q1, 
+        rSAS_fun1,
+        np.ndarray[dtype_t, ndim=1] ST_init = None, 
+        dtype_t dt = 1, 
+        int n_substeps = 1, 
+        int n_iterations = 3, C_in=None, C_old=None):
+    """Private function solving the rSAS model with 2 outflows, solved using the original age-based algorithm
+
+    See the docstring for rsas.solve for moreinformation
+    """
+    # Initialization
+    # Define some variables
+    cdef int k, i, timeseries_length, num_inputs, max_age, N
+    cdef np.float64_t start_time
+    cdef np.ndarray[dtype_t, ndim=2] ST, PQ1, Q1out, theta1, thetaS, MassBalance
+    cdef np.ndarray[dtype_t, ndim=1] STp, PQ1p, Q1outp
+    cdef np.ndarray[dtype_t, ndim=1] STu, PQ1u, dPQ1u, dQ1outu, dSTp, dPQ1p
+    cdef np.ndarray[dtype_t, ndim=1] Q1r, Jr
+    #cdef np.ndarray[dtype_t, ndim=2] Q1_paramsr, Q2_paramsr
+    # Handle inputs
+    if ST_init is None:
+        ST_init=np.zeros(len(J) + 1)
+    else:
+        # This must be true
+        ST_init[0] = 0
+    # Some lengths
+    timeseries_length = len(J)
+    max_age = len(ST_init) - 1
+    N = timeseries_length * n_substeps
+    # Expand the inputs to accomodate the substep solution points
+    Q1r = Q1.repeat(n_substeps)
+    Jr = J.repeat(n_substeps)
+    dt = dt / n_substeps
+    # Create arrays to hold the state variables
+    _verbose('...initializing arrays...')
+    ST = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
+    PQ1 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
+    Q1out = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
+    theta1 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
+    thetaS = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
+    MassBalance = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
+    #Create arrays to hold intermediate solutions
+    STp = np.zeros(N+1, dtype=np.float64)
+    PQ1p = np.zeros(N+1, dtype=np.float64)
+    Q1outp = np.zeros(N+1, dtype=np.float64)
+    dSTp = np.zeros(N, dtype=np.float64)
+    dPQ1p = np.zeros(N, dtype=np.float64)
+    dSTu = np.zeros(N, dtype=np.float64)
+    dPQ1u = np.zeros(N, dtype=np.float64)
+    STu = np.zeros(N, dtype=np.float64)
+    PQ1u = np.zeros(N, dtype=np.float64)
+    dQ1outu = np.zeros(N, dtype=np.float64)
+    _verbose('done')
+    # Now we solve the governing equation
+    # Set up initial and boundary conditions
+    dSTp[:] = Jr * dt
+    dPQ1p[:] = np.where(dSTp>0., rSAS_fun1.cdf_all(dSTp), 0.)
+    ST[:, 0] = ST_init[:]
+    PQ1_init = rSAS_fun1.cdf_i(ST_init, 0)
+    PQ1[:, 0] = PQ1_init
+    start_time = time.clock()
+    _verbose('...solving...')
+    # Primary solution loop over ages T
+    for i in range(max_age):
+    # Loop over substeps
+        for k in range(n_substeps):
+            # dSTp is the increment of ST at the previous age and previous timestep.
+            # It is therefore our first estimate of the increment of ST at this
+            # age and timestep. 
+            STu[:] = STp[1:] + dSTp
+            # Use this estimate to get an initial estimate of the 
+            # cumulative transit time distributions, PQ1 and PQ2
+            PQ1u[:] = np.where(dSTp>0., rSAS_fun1.cdf_all(STu), PQ1p[1:])
+            # Iterate to refine these estimates
+            for it in range(n_iterations):
+                # Increments of the cumulative transit time distribution
+                # approximate the values of the transit time PDF at this age
+                dPQ1u[:] = (PQ1u - PQ1p[1:])
+                # Estimate the outflow over the interval of ages dt with an age
+                # T as the discharge over the timestep times the average of the
+                # PDF values at the start and the end of the timestep
+                dQ1outu[:] = Q1r * (dPQ1u + dPQ1p) / 2
+                # Update the estimate of dST, ST and the cumulative TTD to
+                # account for these outflows
+                dSTu[:] = np.maximum(dSTp - dt * dQ1outu, 0.)
+                STu[:] = STp[1:] + dSTu
+                PQ1u[:] = np.where(dSTp>0., rSAS_fun1.cdf_all(STu), PQ1p[1:])
+            # Update the 'previous solution' record in preparation of the
+            # next solution timestep
+            STp[1:] = STu[:]
+            PQ1p[1:] = PQ1u[:]
+            dSTp[1:]  = dSTu[:N-1]
+            dPQ1p[1:] = dPQ1u[:N-1]
+            # Incorporate the boundary condition
+            dSTp[0]  = (ST_init[i+1] - (ST_init[i])) / n_substeps
+            dPQ1p[0] = (PQ1_init[i+1] - (PQ1_init[i])) / n_substeps
+            # Keep a running tally of the outflows by age
+            Q1outp[1:] = Q1outp[:N] + dQ1outu[:]
+            Q1out[i+1, 1:] += Q1outp[n_substeps::n_substeps]/n_substeps
+            # If a full timestep is complete, store the result
+            if k==n_substeps-1:
+                ST[i+1, 1:] =   STp[n_substeps::n_substeps]
+                PQ1[i+1, 1:] = PQ1p[n_substeps::n_substeps]
+                theta1[i+1, i+1:] = np.where(J[:timeseries_length-i]>0, Q1out[i+1, i+1:] / J[:timeseries_length-i], 0.)
+                thetaS[i+1, i+1:] = np.where(J[:timeseries_length-i]>0, (ST[i+1, i+1:] - ST[i, i+1:]) / J[:timeseries_length-i], 0.)
+                MassBalance[i+1, i+1:] = (J[:timeseries_length-i] 
+                                        - Q1out[i+1, i+1:] 
+                                        - (ST[i+1, i+1:] - ST[i, i+1:])/dt)
+        if np.mod(i+1,1000)==0:
+            _verbose('...done ' + str(i+1) + ' of ' + str(max_age) + ' in ' + str(time.clock() - start_time) + ' seconds')
+    # Evaluation of outflow concentration
+    if C_in is not None:
+        C_out, _, observed_fraction = rsas._util.transport(PQ1, C_in, C_old)
+        return C_out, ST, PQ1, Q1out, theta1, thetaS, MassBalance
+    else:
+        return ST, PQ1, Q1out, theta1, thetaS, MassBalance
 
 
 @cython.boundscheck(False)
@@ -561,7 +696,7 @@ def _solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
     # Now we solve the governing equation
     # Set up initial and boundary conditions
     dSTp[0] = J[0] * dt
-    dSTp[1:max_age] = np.diff(ST_init[:max_age]) #ADDED
+    dSTp[1:max_age] = np.diff(ST_init[:max_age])
     pQ1p[:] = np.diff(rSAS_fun1.cdf_i(ST_init, 0))
     if full_outputs:
         ST[:,0] = ST_init[:]
@@ -573,8 +708,8 @@ def _solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
         # dSTp is the increments of ST at the previous age and previous timestep.
         # It is therefore our first estimate of the increments of ST at this
         # age and timestep. 
-        STu[0]=0 #ADDED
-        STu[1:max_age+1]=np.cumsum(dSTp) #ADDED
+        STu[0]=0
+        STu[1:max_age+1]=np.cumsum(dSTp)
         #Use this estimate to get an initial estimate of the 
         # transit time distribution PDF, pQ1
         pQ1u[0] = rSAS_fun1.cdf_i(dSTp[:1], i)
@@ -589,7 +724,7 @@ def _solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
             # Update the estimate of dST and the TTD PDF to
             # account for the outflow
             dSTu[:max_age] = np.maximum(dSTp - dt * dQ1outu - dt * dQ2outu, 0.)
-            STu[1:max_age+1] = np.cumsum(dSTu) #ADDED
+            STu[1:max_age+1] = np.cumsum(dSTu) 
             pQ1u[0] = rSAS_fun1.cdf_i(dSTu[:1], i)
             pQ1u[1:max_age] = np.diff(rSAS_fun1.cdf_i(np.cumsum(dSTu), i))
         # Update the 'previous solution' record in preparation of the
@@ -601,7 +736,6 @@ def _solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
             dSTp[0] = J[i+1] * dt
             # This vale is never used
             pQ1p[0] = 0
-	#DANO TO MAKE FIX
         # Progressive evaluation of outflow concentration
         if C_in is not None:
             C_out[i] = np.sum(pQ1u[:i+1] * C_in[i::-1])
