@@ -23,14 +23,14 @@ from scipy.special import gammainc
 from scipy.special import erfc
 from scipy.interpolate import interp1d
 from scipy.optimize import fmin, minimize_scalar, fsolve
-import time        
+import time
 import rsas._util
 
 # for debugging
 debug = True
 def _verbose(statement):
     """Prints debuging messages if rsas_functions.debug==True
-    
+
     """
     if debug:
         print statement
@@ -42,21 +42,21 @@ def create_function(rSAS_type, np.ndarray[dtype_t, ndim=2] params):
         rSAS_type : str
             A string indicating the requested rSAS functional form.
         params : n x k float64 ndarray
-            Parameters for the rSAS function. The number of columns and 
-            their meaning depends on which rSAS type is chosen. For all the rSAS 
+            Parameters for the rSAS function. The number of columns and
+            their meaning depends on which rSAS type is chosen. For all the rSAS
             functions implemented so far, each row corresponds with a timestep.
 
     Returns:
         rSAS_fun : rSASFunctionClass
             An rSAS function of the chosen type
-        
+
     The created function object will have methods that vary between types. All
     must have a constructor ("__init__") and two methods cdf_all and cdf_i. See
     the documentation for rSASFunctionClass for more information.
-    
+
     Available choices for rSAS_type, and a description of parameter array, are below.
     These all take one parameter set (row) per timestep:
-    
+
     'uniform' : Uniform distribution over the range [a, b].
             * ``Q_params[:, 0]`` = a
             * ``Q_params[:, 1]`` = b
@@ -88,22 +88,23 @@ def create_function(rSAS_type, np.ndarray[dtype_t, ndim=2] params):
                      'SS_invgauss':_SS_invgauss_rSAS,
                      'SS_mobileimmobile':_SS_mobileimmobile_rSAS,
                      'uniform':_uniform_rSAS,
+                     'kumaraswami':_kumaraswami_rSAS,
                      'from_steady_state_TTD':_from_steady_state_TTD_rSAS}
     return function_dict[rSAS_type](params)
-        
+
 class rSASFunctionClass:
     """Base class for constructing rSAS functions
 
     All rSAS functions must override the following methods:
-    
+
     __init__(self, np.ndarray[dtype_t, ndim=2] params):
         Initializes the rSAS function for a timeseries of parameters params.
         Usually each row of params corresponds to a timestep and each column is
-        a parameter, but this is not strictly required as long as cdf_all and 
+        a parameter, but this is not strictly required as long as cdf_all and
         cdf_i do what you want them to.
     rSAS_fun.cdf_all(ndarray ST)
         returns the cumulative distribution function for an array ST (which
-        must be the same length as the params matrix used to create the 
+        must be the same length as the params matrix used to create the
         function). Each value of ST is evaluated using the parameter values
         on the respective row of params
     rSAS_fun.cdf_i(ndarray ST, int i)
@@ -117,7 +118,21 @@ class rSASFunctionClass:
         raise NotImplementedError('cdf_all not implemented in derived rSASFunctionClass')
     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
         raise NotImplementedError('cdf_i not implemented in derived rSASFunctionClass')
-    
+
+class _kumaraswami_rSAS(rSASFunctionClass):
+    def __init__(self, np.ndarray[dtype_t, ndim=2] params):
+        params = params.copy()
+        self.a = params[:,0]
+        self.b = params[:,1]
+        self.S_min = params[:,2]
+        self.S_max = params[:,3]
+    def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
+        return np.where(ST >= self.S_min, np.where(ST <= self.S_max,
+            1 - ( 1 - ((ST - self.S_min)/(self.S_max - self.S_min))**self.a)**self.b, 1.), 0.)
+    def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
+        return np.where(ST >= self.S_min[i], np.where(ST <= self.S_max[i],
+            1 - ( 1 - ((ST - self.S_min[i])/(self.S_max[i] - self.S_min[i]))**self.a[i])**self.b[i], 1.), 0.)
+
 class _uniform_rSAS(rSASFunctionClass):
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
         params = params.copy()
@@ -129,7 +144,7 @@ class _uniform_rSAS(rSASFunctionClass):
     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
         return np.where(ST >= self.a[i], np.where(ST <= self.b[i], self.lam[i] * (ST - self.a[i]), 1.), 0.)
 
-class _gamma_rSAS(rSASFunctionClass): 
+class _gamma_rSAS(rSASFunctionClass):
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
         params = params.copy()
         self.shift = params[:,0]
@@ -143,8 +158,8 @@ class _gamma_rSAS(rSASFunctionClass):
         return np.where(ST-self.shift > 0, gammainc(self.a, self.lam*(ST-self.shift)), 0.)
     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
         return np.where(ST-self.shift[i] > 0, gammainc(self.a[i], self.lam[i]*(ST-self.shift[i])), 0.)
-        
-class _gamma_trunc_rSAS(rSASFunctionClass): 
+
+class _gamma_trunc_rSAS(rSASFunctionClass):
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
         params = params.copy()
         self.shift = params[:,0]
@@ -226,10 +241,10 @@ class _SS_mobileimmobile_rSAS(rSASFunctionClass):
 
     def F1(self, dtype_t x, dtype_t Pe):
         return erfc((1 - x) / np.sqrt(8 * x / Pe)) / 2.
-        
+
     def F2(self, dtype_t x, dtype_t Pe):
         return erfc((1 + x) / np.sqrt(8 * x / Pe)) / 2. * np.exp(Pe/2)
-                
+
     def Omegax(self, dtype_t x):
         ADE_term = self.F1(x, self.Pe[self.i]) + self.F2(x, self.Pe[self.i])
         Cross_term = self.F1(self.rho[self.i] * x, self.rho[self.i] * self.Pe[self.i]) + self.F2(self.rho[self.i] * x, self.rho[self.i] * self.Pe[self.i])
