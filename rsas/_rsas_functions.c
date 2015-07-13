@@ -3734,7 +3734,7 @@ static PyObject *__pyx_pf_15_rsas_functions_13_uniform_rSAS___init__(CYTHON_UNUS
  *         self.b = params[:,1]
  *         self.lam = 1.0/(self.b-self.a)             # <<<<<<<<<<<<<<
  *     def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
- *         return np.where(ST >= self.a, np.where(ST <= self.b,  self.lam * (ST - self.a), 1.), 0.)
+ *         return np.where(ST < self.b, np.where(ST > self.a,  self.lam * (ST - self.a), 0.), 1.)
  */
   __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self, __pyx_n_s_b); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 141; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_1);
@@ -3786,7 +3786,7 @@ static PyObject *__pyx_pf_15_rsas_functions_13_uniform_rSAS___init__(CYTHON_UNUS
  *         self.b = params[:,1]
  *         self.lam = 1.0/(self.b-self.a)
  *     def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):             # <<<<<<<<<<<<<<
- *         return np.where(ST >= self.a, np.where(ST <= self.b,  self.lam * (ST - self.a), 1.), 0.)
+ *         return np.where(ST < self.b, np.where(ST > self.a,  self.lam * (ST - self.a), 0.), 1.)
  *     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
  */
 
@@ -3891,9 +3891,9 @@ static PyObject *__pyx_pf_15_rsas_functions_13_uniform_rSAS_2cdf_all(CYTHON_UNUS
   /* "_rsas_functions.pyx":143
  *         self.lam = 1.0/(self.b-self.a)
  *     def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
- *         return np.where(ST >= self.a, np.where(ST <= self.b,  self.lam * (ST - self.a), 1.), 0.)             # <<<<<<<<<<<<<<
+ *         return np.where(ST < self.b, np.where(ST > self.a,  self.lam * (ST - self.a), 0.), 1.)             # <<<<<<<<<<<<<<
  *     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
- *         return np.where(ST >= self.a[i], np.where(ST <= self.b[i], self.lam[i] * (ST - self.a[i]), 1.), 0.)
+ *         return np.where(ST < self.b[i], np.where(ST > self.a[i], self.lam[i] * (ST - self.a[i]), 0.), 1.)
  */
   __Pyx_XDECREF(__pyx_r);
   __pyx_t_2 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 143; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
@@ -3901,18 +3901,18 @@ static PyObject *__pyx_pf_15_rsas_functions_13_uniform_rSAS_2cdf_all(CYTHON_UNUS
   __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_where); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 143; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self, __pyx_n_s_a); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 143; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self, __pyx_n_s_b); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 143; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_4 = PyObject_RichCompare(((PyObject *)__pyx_v_ST), __pyx_t_2, Py_GE); __Pyx_XGOTREF(__pyx_t_4); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 143; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_4 = PyObject_RichCompare(((PyObject *)__pyx_v_ST), __pyx_t_2, Py_LT); __Pyx_XGOTREF(__pyx_t_4); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 143; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __pyx_t_5 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 143; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_5);
   __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_5, __pyx_n_s_where); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 143; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_6);
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-  __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_v_self, __pyx_n_s_b); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 143; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_v_self, __pyx_n_s_a); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 143; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_7 = PyObject_RichCompare(((PyObject *)__pyx_v_ST), __pyx_t_5, Py_LE); __Pyx_XGOTREF(__pyx_t_7); if (unlikely(!__pyx_t_7)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 143; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_7 = PyObject_RichCompare(((PyObject *)__pyx_v_ST), __pyx_t_5, Py_GT); __Pyx_XGOTREF(__pyx_t_7); if (unlikely(!__pyx_t_7)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 143; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_v_self, __pyx_n_s_lam); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 143; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_5);
@@ -3946,9 +3946,9 @@ static PyObject *__pyx_pf_15_rsas_functions_13_uniform_rSAS_2cdf_all(CYTHON_UNUS
   __Pyx_GIVEREF(__pyx_t_7);
   PyTuple_SET_ITEM(__pyx_t_5, 1+__pyx_t_10, __pyx_t_8);
   __Pyx_GIVEREF(__pyx_t_8);
-  __Pyx_INCREF(__pyx_float_1_);
-  PyTuple_SET_ITEM(__pyx_t_5, 2+__pyx_t_10, __pyx_float_1_);
-  __Pyx_GIVEREF(__pyx_float_1_);
+  __Pyx_INCREF(__pyx_float_0_);
+  PyTuple_SET_ITEM(__pyx_t_5, 2+__pyx_t_10, __pyx_float_0_);
+  __Pyx_GIVEREF(__pyx_float_0_);
   __pyx_t_7 = 0;
   __pyx_t_8 = 0;
   __pyx_t_2 = __Pyx_PyObject_Call(__pyx_t_6, __pyx_t_5, NULL); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 143; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
@@ -3976,9 +3976,9 @@ static PyObject *__pyx_pf_15_rsas_functions_13_uniform_rSAS_2cdf_all(CYTHON_UNUS
   __Pyx_GIVEREF(__pyx_t_4);
   PyTuple_SET_ITEM(__pyx_t_5, 1+__pyx_t_10, __pyx_t_2);
   __Pyx_GIVEREF(__pyx_t_2);
-  __Pyx_INCREF(__pyx_float_0_);
-  PyTuple_SET_ITEM(__pyx_t_5, 2+__pyx_t_10, __pyx_float_0_);
-  __Pyx_GIVEREF(__pyx_float_0_);
+  __Pyx_INCREF(__pyx_float_1_);
+  PyTuple_SET_ITEM(__pyx_t_5, 2+__pyx_t_10, __pyx_float_1_);
+  __Pyx_GIVEREF(__pyx_float_1_);
   __pyx_t_4 = 0;
   __pyx_t_2 = 0;
   __pyx_t_1 = __Pyx_PyObject_Call(__pyx_t_3, __pyx_t_5, NULL); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 143; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
@@ -3993,7 +3993,7 @@ static PyObject *__pyx_pf_15_rsas_functions_13_uniform_rSAS_2cdf_all(CYTHON_UNUS
  *         self.b = params[:,1]
  *         self.lam = 1.0/(self.b-self.a)
  *     def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):             # <<<<<<<<<<<<<<
- *         return np.where(ST >= self.a, np.where(ST <= self.b,  self.lam * (ST - self.a), 1.), 0.)
+ *         return np.where(ST < self.b, np.where(ST > self.a,  self.lam * (ST - self.a), 0.), 1.)
  *     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
  */
 
@@ -4026,9 +4026,9 @@ static PyObject *__pyx_pf_15_rsas_functions_13_uniform_rSAS_2cdf_all(CYTHON_UNUS
 
 /* "_rsas_functions.pyx":144
  *     def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
- *         return np.where(ST >= self.a, np.where(ST <= self.b,  self.lam * (ST - self.a), 1.), 0.)
+ *         return np.where(ST < self.b, np.where(ST > self.a,  self.lam * (ST - self.a), 0.), 1.)
  *     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):             # <<<<<<<<<<<<<<
- *         return np.where(ST >= self.a[i], np.where(ST <= self.b[i], self.lam[i] * (ST - self.a[i]), 1.), 0.)
+ *         return np.where(ST < self.b[i], np.where(ST > self.a[i], self.lam[i] * (ST - self.a[i]), 0.), 1.)
  * 
  */
 
@@ -4140,9 +4140,9 @@ static PyObject *__pyx_pf_15_rsas_functions_13_uniform_rSAS_4cdf_i(CYTHON_UNUSED
   __pyx_pybuffernd_ST.diminfo[0].strides = __pyx_pybuffernd_ST.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_ST.diminfo[0].shape = __pyx_pybuffernd_ST.rcbuffer->pybuffer.shape[0];
 
   /* "_rsas_functions.pyx":145
- *         return np.where(ST >= self.a, np.where(ST <= self.b,  self.lam * (ST - self.a), 1.), 0.)
+ *         return np.where(ST < self.b, np.where(ST > self.a,  self.lam * (ST - self.a), 0.), 1.)
  *     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
- *         return np.where(ST >= self.a[i], np.where(ST <= self.b[i], self.lam[i] * (ST - self.a[i]), 1.), 0.)             # <<<<<<<<<<<<<<
+ *         return np.where(ST < self.b[i], np.where(ST > self.a[i], self.lam[i] * (ST - self.a[i]), 0.), 1.)             # <<<<<<<<<<<<<<
  * 
  * class _gamma_rSAS(rSASFunctionClass):
  */
@@ -4152,24 +4152,24 @@ static PyObject *__pyx_pf_15_rsas_functions_13_uniform_rSAS_4cdf_i(CYTHON_UNUSED
   __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_where); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self, __pyx_n_s_a); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_self, __pyx_n_s_b); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_2);
   __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_2, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(__pyx_t_4 == NULL)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;};
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = PyObject_RichCompare(((PyObject *)__pyx_v_ST), __pyx_t_4, Py_GE); __Pyx_XGOTREF(__pyx_t_2); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_2 = PyObject_RichCompare(((PyObject *)__pyx_v_ST), __pyx_t_4, Py_LT); __Pyx_XGOTREF(__pyx_t_2); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __pyx_t_5 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_5);
   __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_5, __pyx_n_s_where); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_6);
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-  __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_v_self, __pyx_n_s_b); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_v_self, __pyx_n_s_a); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_5);
   __pyx_t_7 = __Pyx_GetItemInt(__pyx_t_5, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(__pyx_t_7 == NULL)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;};
   __Pyx_GOTREF(__pyx_t_7);
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-  __pyx_t_5 = PyObject_RichCompare(((PyObject *)__pyx_v_ST), __pyx_t_7, Py_LE); __Pyx_XGOTREF(__pyx_t_5); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_5 = PyObject_RichCompare(((PyObject *)__pyx_v_ST), __pyx_t_7, Py_GT); __Pyx_XGOTREF(__pyx_t_5); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
   __pyx_t_7 = __Pyx_PyObject_GetAttrStr(__pyx_v_self, __pyx_n_s_lam); if (unlikely(!__pyx_t_7)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_7);
@@ -4209,9 +4209,9 @@ static PyObject *__pyx_pf_15_rsas_functions_13_uniform_rSAS_4cdf_i(CYTHON_UNUSED
   __Pyx_GIVEREF(__pyx_t_5);
   PyTuple_SET_ITEM(__pyx_t_8, 1+__pyx_t_10, __pyx_t_9);
   __Pyx_GIVEREF(__pyx_t_9);
-  __Pyx_INCREF(__pyx_float_1_);
-  PyTuple_SET_ITEM(__pyx_t_8, 2+__pyx_t_10, __pyx_float_1_);
-  __Pyx_GIVEREF(__pyx_float_1_);
+  __Pyx_INCREF(__pyx_float_0_);
+  PyTuple_SET_ITEM(__pyx_t_8, 2+__pyx_t_10, __pyx_float_0_);
+  __Pyx_GIVEREF(__pyx_float_0_);
   __pyx_t_5 = 0;
   __pyx_t_9 = 0;
   __pyx_t_4 = __Pyx_PyObject_Call(__pyx_t_6, __pyx_t_8, NULL); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
@@ -4239,9 +4239,9 @@ static PyObject *__pyx_pf_15_rsas_functions_13_uniform_rSAS_4cdf_i(CYTHON_UNUSED
   __Pyx_GIVEREF(__pyx_t_2);
   PyTuple_SET_ITEM(__pyx_t_8, 1+__pyx_t_10, __pyx_t_4);
   __Pyx_GIVEREF(__pyx_t_4);
-  __Pyx_INCREF(__pyx_float_0_);
-  PyTuple_SET_ITEM(__pyx_t_8, 2+__pyx_t_10, __pyx_float_0_);
-  __Pyx_GIVEREF(__pyx_float_0_);
+  __Pyx_INCREF(__pyx_float_1_);
+  PyTuple_SET_ITEM(__pyx_t_8, 2+__pyx_t_10, __pyx_float_1_);
+  __Pyx_GIVEREF(__pyx_float_1_);
   __pyx_t_2 = 0;
   __pyx_t_4 = 0;
   __pyx_t_1 = __Pyx_PyObject_Call(__pyx_t_3, __pyx_t_8, NULL); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
@@ -4254,9 +4254,9 @@ static PyObject *__pyx_pf_15_rsas_functions_13_uniform_rSAS_4cdf_i(CYTHON_UNUSED
 
   /* "_rsas_functions.pyx":144
  *     def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
- *         return np.where(ST >= self.a, np.where(ST <= self.b,  self.lam * (ST - self.a), 1.), 0.)
+ *         return np.where(ST < self.b, np.where(ST > self.a,  self.lam * (ST - self.a), 0.), 1.)
  *     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):             # <<<<<<<<<<<<<<
- *         return np.where(ST >= self.a[i], np.where(ST <= self.b[i], self.lam[i] * (ST - self.a[i]), 1.), 0.)
+ *         return np.where(ST < self.b[i], np.where(ST > self.a[i], self.lam[i] * (ST - self.a[i]), 0.), 1.)
  * 
  */
 
@@ -16261,7 +16261,7 @@ static int __Pyx_InitCachedConstants(void) {
  *         self.b = params[:,1]
  *         self.lam = 1.0/(self.b-self.a)
  *     def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):             # <<<<<<<<<<<<<<
- *         return np.where(ST >= self.a, np.where(ST <= self.b,  self.lam * (ST - self.a), 1.), 0.)
+ *         return np.where(ST < self.b, np.where(ST > self.a,  self.lam * (ST - self.a), 0.), 1.)
  *     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
  */
   __pyx_tuple__68 = PyTuple_Pack(2, __pyx_n_s_self, __pyx_n_s_ST); if (unlikely(!__pyx_tuple__68)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 142; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
@@ -16271,9 +16271,9 @@ static int __Pyx_InitCachedConstants(void) {
 
   /* "_rsas_functions.pyx":144
  *     def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
- *         return np.where(ST >= self.a, np.where(ST <= self.b,  self.lam * (ST - self.a), 1.), 0.)
+ *         return np.where(ST < self.b, np.where(ST > self.a,  self.lam * (ST - self.a), 0.), 1.)
  *     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):             # <<<<<<<<<<<<<<
- *         return np.where(ST >= self.a[i], np.where(ST <= self.b[i], self.lam[i] * (ST - self.a[i]), 1.), 0.)
+ *         return np.where(ST < self.b[i], np.where(ST > self.a[i], self.lam[i] * (ST - self.a[i]), 0.), 1.)
  * 
  */
   __pyx_tuple__70 = PyTuple_Pack(3, __pyx_n_s_self, __pyx_n_s_ST, __pyx_n_s_i); if (unlikely(!__pyx_tuple__70)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 144; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
@@ -17173,7 +17173,7 @@ PyMODINIT_FUNC PyInit__rsas_functions(void)
  *         self.b = params[:,1]
  *         self.lam = 1.0/(self.b-self.a)
  *     def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):             # <<<<<<<<<<<<<<
- *         return np.where(ST >= self.a, np.where(ST <= self.b,  self.lam * (ST - self.a), 1.), 0.)
+ *         return np.where(ST < self.b, np.where(ST > self.a,  self.lam * (ST - self.a), 0.), 1.)
  *     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
  */
   __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_15_rsas_functions_13_uniform_rSAS_3cdf_all, 0, __pyx_n_s_uniform_rSAS_cdf_all, NULL, __pyx_n_s_rsas_functions, __pyx_d, ((PyObject *)__pyx_codeobj__69)); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 142; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
@@ -17183,9 +17183,9 @@ PyMODINIT_FUNC PyInit__rsas_functions(void)
 
   /* "_rsas_functions.pyx":144
  *     def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
- *         return np.where(ST >= self.a, np.where(ST <= self.b,  self.lam * (ST - self.a), 1.), 0.)
+ *         return np.where(ST < self.b, np.where(ST > self.a,  self.lam * (ST - self.a), 0.), 1.)
  *     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):             # <<<<<<<<<<<<<<
- *         return np.where(ST >= self.a[i], np.where(ST <= self.b[i], self.lam[i] * (ST - self.a[i]), 1.), 0.)
+ *         return np.where(ST < self.b[i], np.where(ST > self.a[i], self.lam[i] * (ST - self.a[i]), 0.), 1.)
  * 
  */
   __pyx_t_4 = __Pyx_CyFunction_NewEx(&__pyx_mdef_15_rsas_functions_13_uniform_rSAS_5cdf_i, 0, __pyx_n_s_uniform_rSAS_cdf_i, NULL, __pyx_n_s_rsas_functions, __pyx_d, ((PyObject *)__pyx_codeobj__71)); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 144; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
@@ -17209,7 +17209,7 @@ PyMODINIT_FUNC PyInit__rsas_functions(void)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
   /* "_rsas_functions.pyx":147
- *         return np.where(ST >= self.a[i], np.where(ST <= self.b[i], self.lam[i] * (ST - self.a[i]), 1.), 0.)
+ *         return np.where(ST < self.b[i], np.where(ST > self.a[i], self.lam[i] * (ST - self.a[i]), 0.), 1.)
  * 
  * class _gamma_rSAS(rSASFunctionClass):             # <<<<<<<<<<<<<<
  *     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
@@ -17276,7 +17276,7 @@ PyMODINIT_FUNC PyInit__rsas_functions(void)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
   /* "_rsas_functions.pyx":147
- *         return np.where(ST >= self.a[i], np.where(ST <= self.b[i], self.lam[i] * (ST - self.a[i]), 1.), 0.)
+ *         return np.where(ST < self.b[i], np.where(ST > self.a[i], self.lam[i] * (ST - self.a[i]), 0.), 1.)
  * 
  * class _gamma_rSAS(rSASFunctionClass):             # <<<<<<<<<<<<<<
  *     def __init__(self, np.ndarray[dtype_t, ndim=2] params):

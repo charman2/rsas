@@ -140,9 +140,9 @@ class _uniform_rSAS(rSASFunctionClass):
         self.b = params[:,1]
         self.lam = 1.0/(self.b-self.a)
     def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
-        return np.where(ST >= self.a, np.where(ST <= self.b,  self.lam * (ST - self.a), 1.), 0.)
+        return np.where(ST < self.b, np.where(ST > self.a,  self.lam * (ST - self.a), 0.), 1.)
     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
-        return np.where(ST >= self.a[i], np.where(ST <= self.b[i], self.lam[i] * (ST - self.a[i]), 1.), 0.)
+        return np.where(ST < self.b[i], np.where(ST > self.a[i], self.lam[i] * (ST - self.a[i]), 0.), 1.)
 
 class _gamma_rSAS(rSASFunctionClass):
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
