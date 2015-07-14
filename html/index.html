@@ -83,174 +83,307 @@ unless this code is changed.</p>
 <h2>Examples<a class="headerlink" href="#examples" title="Permalink to this headline">¶</a></h2>
 <p>Example uses of rsas are available in the ./examples directory. These should
 run right out of the box.</p>
-<div class="section" id="simple-timestepping-py">
-<h3>simple_timestepping.py<a class="headerlink" href="#simple-timestepping-py" title="Permalink to this headline">¶</a></h3>
+<div class="section" id="steady-py">
+<h3>steady.py<a class="headerlink" href="#steady-py" title="Permalink to this headline">¶</a></h3>
 <div class="highlight-python"><div class="highlight"><pre><span class="c"># -*- coding: utf-8 -*-</span>
-<span class="sd">&quot;&quot;&quot;Storage selection (SAS) functions: simple example</span>
+<span class="sd">&quot;&quot;&quot;Storage selection (SAS) functions: example with one flux out at steady state</span>
 
-<span class="sd">Runs the rSAS model for an example dataset with one outflow. A file containing </span>
-<span class="sd">a steady-state transit time distribution is loaded, and used to construct an </span>
-<span class="sd">equivalent storage seletion function.</span>
+<span class="sd">Runs the rSAS model for a synthetic dataset with one flux in and out</span>
+<span class="sd">and steady state flow</span>
 
-<span class="sd">This script uses the time-stepping algorithm (mode=&#39;time&#39;), and </span>
-<span class="sd">calculates discharge concentrations progressively. This saves memory, but is not</span>
-<span class="sd">advised if you want to run the model with the same rSAS parameters but different</span>
-<span class="sd">concentration input timeseries.</span>
-
-<span class="sd">The example dataset is the same as in lower_hafren_example.py, but the results here are not</span>
-<span class="sd">intended to be realistic.</span>
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">division</span>
-<span class="kn">import</span> <span class="nn">rsas</span>
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
-<span class="kn">import</span> <span class="nn">pandas</span> <span class="kn">as</span> <span class="nn">pd</span>
-<span class="c"># =====================================</span>
-<span class="c"># Load and process the input timeseries</span>
-<span class="c"># =====================================</span>
-<span class="c"># Load the data</span>
-<span class="n">data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s">&#39;lower_hafren_data.csv&#39;</span><span class="p">,</span> <span class="n">index_col</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">parse_dates</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
-<span class="c"># Uncomment the following line if you want to just run the first 2000 days</span>
-<span class="c"># data = data[:2000]</span>
-<span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
-<span class="c"># Calculate a (bogus) effective rainfall rate</span>
-<span class="n">data</span><span class="p">[</span><span class="s">&#39;Peff water flux mm/day&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;Q water flux mm/day&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">*</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;P water flux mm/day&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;P water flux mm/day&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
-<span class="c"># Calculate a (bogus) adjusted concentration</span>
-<span class="n">data</span><span class="p">[</span><span class="s">&#39;Peff Cl mg/l&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;Q Cl mg/l&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">*</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;P Cl mg/l&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;P Cl mg/l&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
-<span class="c"># =========================</span>
-<span class="c"># Parameters needed by rsas</span>
-<span class="c"># =========================</span>
-<span class="c"># The concentration of discharge older than the start of observations is</span>
-<span class="c"># assumed to be the long-term mean deposition rate divided by mean discharge</span>
-<span class="n">C_old</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s">&#39;Peff Cl mg/l&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;P Cl mg/l&#39;</span><span class="p">])</span><span class="o">/</span><span class="n">data</span><span class="p">[</span><span class="s">&#39;Peff Cl mg/l&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
-<span class="c"># =========================</span>
-<span class="c"># Create the rsas functions</span>
-<span class="c"># =========================</span>
-<span class="n">Q_rSAS_fun_type</span> <span class="o">=</span> <span class="s">&#39;from_steady_state_TTD&#39;</span>
-<span class="n">TT_CDF</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s">&#39;example_steady_state_TTD.csv&#39;</span><span class="p">,</span> <span class="n">names</span><span class="o">=</span><span class="s">&#39;P&#39;</span><span class="p">)</span>
-<span class="n">Q_rSAS_fun_parameters</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">TT_CDF</span><span class="p">),</span><span class="mi">1</span><span class="p">))</span>
-<span class="n">Q_rSAS_fun_parameters</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">5.72</span> <span class="c"># steady-state flow rate</span>
-<span class="n">Q_rSAS_fun_parameters</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">TT_CDF</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span><span class="mi">0</span><span class="p">]</span>
-<span class="n">rSAS_fun_Q</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">create_function</span><span class="p">(</span><span class="n">Q_rSAS_fun_type</span><span class="p">,</span> <span class="n">Q_rSAS_fun_parameters</span><span class="p">)</span>
-<span class="c"># =================</span>
-<span class="c"># Initial condition</span>
-<span class="c"># =================</span>
-<span class="c"># Unknown total storage</span>
-<span class="n">ST_init</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
-<span class="c"># =============</span>
-<span class="c"># Run the model</span>
-<span class="c"># =============</span>
-<span class="c"># Let&#39;s pull these out to make the inputs to rsas crystal clear</span>
-<span class="n">Peff</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;Peff water flux mm/day&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
-<span class="n">Q</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;Q water flux mm/day&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
-<span class="n">C_in</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;Peff Cl mg/l&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
-<span class="c"># Run it</span>
-<span class="n">output</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">Peff</span><span class="p">,</span> <span class="n">Q</span><span class="p">,</span> <span class="n">rSAS_fun_Q</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s">&#39;time&#39;</span><span class="p">,</span> <span class="n">ST_init</span><span class="o">=</span><span class="n">ST_init</span><span class="p">,</span> <span class="n">C_in</span><span class="o">=</span><span class="n">C_in</span><span class="p">,</span> <span class="n">C_old</span><span class="o">=</span><span class="n">C_old</span><span class="p">)</span>
-<span class="c"># Plot the result</span>
-<span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">clf</span><span class="p">()</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;P Cl mg/l&#39;</span><span class="p">],</span> <span class="n">color</span><span class="o">=</span><span class="s">&#39;0.7&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s">&#39;Load in&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;Q Cl mg/l&#39;</span><span class="p">],</span> <span class="n">color</span><span class="o">=</span><span class="s">&#39;c&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s">&#39;Obs load out&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">output</span><span class="p">[</span><span class="s">&#39;C_out&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="s">&#39;b&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s">&#39;Pred load out&#39;</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="lower-hafren-py">
-<h3>lower_hafren.py<a class="headerlink" href="#lower-hafren-py" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-python"><div class="highlight"><pre><span class="c"># -*- coding: utf-8 -*-</span>
-<span class="sd">&quot;&quot;&quot;Storage selection (SAS) functions: Lower Hafren example</span>
-
-<span class="sd">Runs the rSAS model for the Lower Hafren stream to reproduce the results</span>
-<span class="sd">presented in:</span>
-
+<span class="sd">Theory is presented in:</span>
 <span class="sd">Harman, C. J. (2014), Time-variable transit time distributions and transport:</span>
 <span class="sd">Theory and application to storage-dependent transport of chloride in a watershed,</span>
 <span class="sd">Water Resour. Res., 51, doi:10.1002/2014WR015707.</span>
-
-<span class="sd">The loaded dataset has already been gap-filled. The method to estimate the </span>
-<span class="sd">evapotranspiration timeseries and to account for occult deposition of chloride</span>
-<span class="sd">are included here though.</span>
-
-<span class="sd">This script is identical to lower_hafren_example_timestepping.py, except that</span>
-<span class="sd">the numerical scheme originally used in the paper (mode=&#39;age&#39;) is called,</span>
-<span class="sd">rather than a new one (mode=&#39;time&#39;).</span>
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">division</span>
 <span class="kn">import</span> <span class="nn">rsas</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
 <span class="kn">import</span> <span class="nn">pandas</span> <span class="kn">as</span> <span class="nn">pd</span>
+<span class="c"># Initializes the random number generator so we always get the same result</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
 <span class="c"># =====================================</span>
-<span class="c"># Load and process the input timeseries</span>
+<span class="c"># Generate the input timeseries</span>
 <span class="c"># =====================================</span>
-<span class="c"># Load the data</span>
-<span class="n">data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s">&#39;lower_hafren_data.csv&#39;</span><span class="p">,</span> <span class="n">index_col</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">parse_dates</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
-<span class="c"># Uncomment the following line if you want to just run the first 2000 days</span>
-<span class="c"># data = data[:2000]</span>
-<span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
-<span class="c"># Estimate ET from FAO reference evapotranspiration as ET = k_E * ETO, where</span>
-<span class="c"># k_E is chosen to ensurelong-term mass balance.</span>
-<span class="n">k_ET</span> <span class="o">=</span> <span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s">&#39;P water flux mm/day&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">-</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;Q water flux mm/day&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span><span class="o">/</span><span class="n">data</span><span class="p">[</span><span class="s">&#39;ET0 mm/day&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
-<span class="n">data</span><span class="p">[</span><span class="s">&#39;ET water flux mm/day&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;ET0 mm/day&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">k_ET</span>
-<span class="c"># The fraction of CL deposition from occult deposition (mist droplets) was</span>
-<span class="c"># estimated from literature values and used to scale the timeseries values</span>
-<span class="n">occult_fraction</span> <span class="o">=</span> <span class="mf">0.27</span>
-<span class="n">data</span><span class="p">[</span><span class="s">&#39;P+occult Cl mg/l&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;P Cl mg/l&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">occult_fraction</span><span class="p">)</span>
+<span class="c"># length of the dataset</span>
+<span class="n">N</span> <span class="o">=</span> <span class="mi">100</span>
+<span class="n">S_0</span> <span class="o">=</span> <span class="mf">5.</span> <span class="c"># &lt;-- volume of the uniformly sampled store</span>
+<span class="n">Q_0</span> <span class="o">=</span> <span class="mf">1.</span> <span class="c"># &lt;-- steady-state flow rate</span>
+<span class="n">T_0</span> <span class="o">=</span> <span class="n">S_0</span> <span class="o">/</span> <span class="n">Q_0</span>
+<span class="c"># Note that the analytical solution for the cumulative TTD is</span>
+<span class="n">T</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">PQ_exact</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">T</span><span class="o">/</span><span class="n">T_0</span><span class="p">)</span>
+<span class="c"># Steady-state flow in and out for N timesteps</span>
+<span class="n">J</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="o">*</span> <span class="n">Q_0</span>
+<span class="n">Q1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="o">*</span> <span class="n">Q_0</span>
+<span class="c"># A random timeseries of concentrations</span>
+<span class="n">C_J</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">N</span><span class="p">))</span>
 <span class="c"># =========================</span>
 <span class="c"># Parameters needed by rsas</span>
 <span class="c"># =========================</span>
-<span class="c"># The concentration of discharge older than the start of observations is</span>
-<span class="c"># assumed to be the long-term mean deposition rate divided by mean discharge</span>
-<span class="n">C_old</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s">&#39;P+occult Cl mg/l&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;P water flux mm/day&#39;</span><span class="p">])</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s">&#39;Q water flux mm/day&#39;</span><span class="p">])</span>
+<span class="c"># The concentration of water older than the start of observations</span>
+<span class="n">C_old</span> <span class="o">=</span> <span class="mf">0.</span>
 <span class="c"># =========================</span>
 <span class="c"># Create the rsas functions</span>
 <span class="c"># =========================</span>
-<span class="c"># Parameters for the rSAS function (see Harman [2015])</span>
-<span class="c"># - Discharge</span>
-<span class="n">Q_rSAS_fun_type</span> <span class="o">=</span> <span class="s">&#39;gamma&#39;</span>
-<span class="n">lambda_Q</span> <span class="o">=</span> <span class="o">-</span><span class="mf">102.</span>
-<span class="n">Q_alpha</span> <span class="o">=</span> <span class="mf">0.6856</span>
-<span class="n">Q_dS_crit</span> <span class="o">=</span> <span class="mf">48.25</span>
-<span class="n">S_Q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="mf">1.</span><span class="p">,</span> <span class="n">lambda_Q</span> <span class="o">*</span> <span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s">&#39;S mm&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">Q_dS_crit</span><span class="p">))</span>
-<span class="n">Q_rSAS_fun_parameters</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">N</span><span class="p">),</span> <span class="n">S_Q</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="o">*</span> <span class="n">Q_alpha</span><span class="p">]</span>
-<span class="n">rSAS_fun_Q</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">create_function</span><span class="p">(</span><span class="n">Q_rSAS_fun_type</span><span class="p">,</span> <span class="n">Q_rSAS_fun_parameters</span><span class="p">)</span>
-<span class="c"># - ET</span>
-<span class="n">ET_rSAS_fun_type</span> <span class="o">=</span> <span class="s">&#39;uniform&#39;</span>
-<span class="n">S_ET</span> <span class="o">=</span> <span class="mf">398.</span>
-<span class="n">ET_rSAS_fun_parameters</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">N</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="o">*</span> <span class="n">S_ET</span> <span class="p">]</span>
-<span class="n">rSAS_fun_ET</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">create_function</span><span class="p">(</span><span class="n">ET_rSAS_fun_type</span><span class="p">,</span> <span class="n">ET_rSAS_fun_parameters</span><span class="p">)</span>
+<span class="c"># Parameters for the rSAS function</span>
+<span class="c"># The uniform distribution extends between S_T=a and S_T=b.</span>
+<span class="n">Q_rSAS_fun_type</span> <span class="o">=</span> <span class="s">&#39;uniform&#39;</span>
+<span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.</span>
+<span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="o">*</span> <span class="n">S_0</span>
+<span class="n">Q_rSAS_fun_parameters</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">]</span>
+<span class="n">rSAS_fun_Q1</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">create_function</span><span class="p">(</span><span class="n">Q_rSAS_fun_type</span><span class="p">,</span> <span class="n">Q_rSAS_fun_parameters</span><span class="p">)</span>
 <span class="c"># =================</span>
 <span class="c"># Initial condition</span>
 <span class="c"># =================</span>
-<span class="c"># Unknown total storage</span>
+<span class="c"># Unknown initial age distribution, so just set this to zeros</span>
 <span class="n">ST_init</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
 <span class="c"># =============</span>
 <span class="c"># Run the model</span>
 <span class="c"># =============</span>
-<span class="c"># Let&#39;s pull these out to make the inputs to rsas crystal clear</span>
-<span class="n">J</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;P water flux mm/day&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
-<span class="n">Q</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;Q water flux mm/day&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
-<span class="n">ET</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;ET water flux mm/day&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
-<span class="n">C_in</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;P+occult Cl mg/l&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
 <span class="c"># Run it</span>
-<span class="n">outputs</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">J</span><span class="p">,</span> <span class="p">[</span><span class="n">Q</span><span class="p">,</span> <span class="n">ET</span><span class="p">],</span> <span class="p">[</span><span class="n">rSAS_fun_Q</span><span class="p">,</span> <span class="n">rSAS_fun_ET</span><span class="p">],</span> <span class="n">ST_init</span><span class="o">=</span><span class="n">ST_init</span><span class="p">,</span> 
-                     <span class="n">mode</span><span class="o">=</span><span class="s">&#39;age&#39;</span><span class="p">,</span> <span class="n">dt</span> <span class="o">=</span> <span class="mf">1.</span><span class="p">,</span> <span class="n">n_substeps</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_iterations</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+<span class="n">outputs</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">J</span><span class="p">,</span> <span class="p">[</span><span class="n">Q1</span><span class="p">],</span> <span class="p">[</span><span class="n">rSAS_fun_Q1</span><span class="p">],</span> <span class="n">ST_init</span><span class="o">=</span><span class="n">ST_init</span><span class="p">,</span>
+                     <span class="n">mode</span><span class="o">=</span><span class="s">&#39;time&#39;</span><span class="p">,</span> <span class="n">dt</span> <span class="o">=</span> <span class="mf">1.</span><span class="p">,</span> <span class="n">n_substeps</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">C_in</span><span class="o">=</span><span class="n">C_J</span><span class="p">,</span> <span class="n">C_old</span><span class="o">=</span><span class="n">C_old</span><span class="p">)</span>
 <span class="c"># Let&#39;s pull these out to make the outputs from rsas crystal clear</span>
-<span class="n">PQ</span> <span class="o">=</span> <span class="n">outputs</span><span class="p">[</span><span class="s">&#39;PQ&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
-<span class="n">thetaQ</span> <span class="o">=</span> <span class="n">outputs</span><span class="p">[</span><span class="s">&#39;thetaQ&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
-<span class="n">thetaS</span> <span class="o">=</span> <span class="n">outputs</span><span class="p">[</span><span class="s">&#39;thetaS&#39;</span><span class="p">]</span>
+<span class="n">PQ1</span> <span class="o">=</span> <span class="n">outputs</span><span class="p">[</span><span class="s">&#39;PQ&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">C_outi</span> <span class="o">=</span> <span class="n">outputs</span><span class="p">[</span><span class="s">&#39;C_out&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">ST</span> <span class="o">=</span> <span class="n">outputs</span><span class="p">[</span><span class="s">&#39;ST&#39;</span><span class="p">]</span>
+<span class="c"># ==================================</span>
+<span class="c"># Plot the transit time distribution</span>
+<span class="c"># ==================================</span>
+<span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">clf</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">PQ1</span><span class="p">[:,</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="s">&#39;b-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s">&#39;rsas model&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">PQ_exact</span><span class="p">,</span> <span class="s">&#39;r-.&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s">&#39;analytical solution&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span><span class="mi">4</span><span class="o">*</span><span class="n">T_0</span><span class="p">))</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s">&#39;P_Q(T)&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s">&#39;age T&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s">&#39;Cumulative transit time distribution&#39;</span><span class="p">)</span>
+<span class="c">#%%</span>
 <span class="c"># =====================================================================</span>
 <span class="c"># Convolve the transit time distributions with the input concentrations</span>
 <span class="c"># =====================================================================</span>
 <span class="c"># Use the estimated transit time distribution and input timeseries to estimate</span>
 <span class="c"># the output timeseries</span>
-<span class="n">C_out</span><span class="p">,</span> <span class="n">C_mod_raw</span><span class="p">,</span> <span class="n">observed_fraction</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">transport_with_evapoconcentration</span><span class="p">(</span><span class="n">PQ</span><span class="p">,</span> <span class="n">thetaQ</span><span class="p">,</span> <span class="n">thetaS</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;P+occult Cl mg/l&#39;</span><span class="p">],</span> <span class="n">C_old</span><span class="p">)</span>
-<span class="n">data</span><span class="p">[</span><span class="s">&#39;Q Predicted Cl mg/l&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">C_out</span>
+<span class="n">C_outb</span><span class="p">,</span> <span class="n">C_mod_raw</span><span class="p">,</span> <span class="n">observed_fraction</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">transport</span><span class="p">(</span><span class="n">PQ1</span><span class="p">,</span> <span class="n">C_J</span><span class="p">,</span> <span class="n">C_old</span><span class="p">)</span>
+<span class="c"># Calculate the output concentration using the analytical TTD</span>
+<span class="n">T</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N</span><span class="o">*</span><span class="mf">100.</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">100</span>
+<span class="n">PQe</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">T</span><span class="o">/</span><span class="n">T_0</span><span class="p">),</span> <span class="p">(</span><span class="n">N</span><span class="o">*</span><span class="mf">100.</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">T</span>
+<span class="n">C_oute</span><span class="p">,</span> <span class="n">C_mod_raw</span><span class="p">,</span> <span class="n">observed_fraction</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">transport</span><span class="p">(</span><span class="n">PQe</span><span class="p">,</span> <span class="n">C_J</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="mi">100</span><span class="p">),</span> <span class="n">C_old</span><span class="p">)</span>
 <span class="c"># Plot the result</span>
+<span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">clf</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">C_outb</span><span class="p">,</span> <span class="s">&#39;b-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s">&#39;rsas.transport&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">C_outi</span><span class="p">,</span> <span class="s">&#39;g--&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s">&#39;rsas internal&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">T</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">C_oute</span><span class="p">,</span> <span class="s">&#39;r-.&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s">&#39;rsas internal&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s">&#39;Concentration [-]&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s">&#39;time&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s">&#39;Outflow concentration calculated three ways&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="steady2-py">
+<h3>steady2.py<a class="headerlink" href="#steady2-py" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-python"><div class="highlight"><pre><span class="c"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;Storage selection (SAS) functions: example with one flux out at steady state</span>
+
+<span class="sd">Runs the rSAS model for a synthetic dataset with one flux in and out</span>
+<span class="sd">and steady state flow</span>
+
+<span class="sd">Theory is presented in:</span>
+<span class="sd">Harman, C. J. (2014), Time-variable transit time distributions and transport:</span>
+<span class="sd">Theory and application to storage-dependent transport of chloride in a watershed,</span>
+<span class="sd">Water Resour. Res., 51, doi:10.1002/2014WR015707.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">division</span>
+<span class="kn">import</span> <span class="nn">rsas</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="kn">as</span> <span class="nn">pd</span>
+<span class="c"># Initializes the random number generator so we always get the same result</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="c"># =====================================</span>
+<span class="c"># Generate the input timeseries</span>
+<span class="c"># =====================================</span>
+<span class="c"># length of the dataset</span>
+<span class="n">N</span> <span class="o">=</span> <span class="mi">100</span>
+<span class="n">S_0</span> <span class="o">=</span> <span class="mf">10.</span> <span class="c"># &lt;-- volume of the uniformly sampled store</span>
+<span class="n">Q_0</span> <span class="o">=</span> <span class="mf">1.</span> <span class="c"># &lt;-- steady-state flow rate</span>
+<span class="n">T_0</span> <span class="o">=</span> <span class="n">S_0</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">Q_0</span><span class="p">)</span>
+<span class="c"># Note that the analytical solution for the cumulative TTD is</span>
+<span class="n">T</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">PQ_exact</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">T</span><span class="o">/</span><span class="n">T_0</span><span class="p">)</span>
+<span class="c"># Steady-state flow in and out for N timesteps</span>
+<span class="n">J</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="o">*</span> <span class="n">Q_0</span> <span class="o">*</span> <span class="mi">2</span>
+<span class="n">Q1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="o">*</span> <span class="n">Q_0</span>
+<span class="n">Q2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="o">*</span> <span class="n">Q_0</span>
+<span class="c"># A random timeseries of concentrations</span>
+<span class="n">C_J</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">N</span><span class="p">))</span>
+<span class="c"># =========================</span>
+<span class="c"># Parameters needed by rsas</span>
+<span class="c"># =========================</span>
+<span class="c"># The concentration of water older than the start of observations</span>
+<span class="n">C_old</span> <span class="o">=</span> <span class="mf">0.</span>
+<span class="c"># =========================</span>
+<span class="c"># Create the rsas functions</span>
+<span class="c"># =========================</span>
+<span class="c"># Parameters for the rSAS function</span>
+<span class="c"># The uniform distribution extends between S_T=a and S_T=b.</span>
+<span class="n">Q_rSAS_fun_type</span> <span class="o">=</span> <span class="s">&#39;uniform&#39;</span>
+<span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.</span>
+<span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="o">*</span> <span class="n">S_0</span>
+<span class="n">Q_rSAS_fun_parameters</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">]</span>
+<span class="n">rSAS_fun_Q1</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">create_function</span><span class="p">(</span><span class="n">Q_rSAS_fun_type</span><span class="p">,</span> <span class="n">Q_rSAS_fun_parameters</span><span class="p">)</span>
+<span class="n">rSAS_fun_Q2</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">create_function</span><span class="p">(</span><span class="n">Q_rSAS_fun_type</span><span class="p">,</span> <span class="n">Q_rSAS_fun_parameters</span><span class="p">)</span>
+<span class="c"># =================</span>
+<span class="c"># Initial condition</span>
+<span class="c"># =================</span>
+<span class="c"># Unknown initial age distribution, so just set this to zeros</span>
+<span class="n">ST_init</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+<span class="c"># =============</span>
+<span class="c"># Run the model</span>
+<span class="c"># =============</span>
+<span class="c"># Run it</span>
+<span class="n">outputs</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">J</span><span class="p">,</span> <span class="p">[</span><span class="n">Q1</span><span class="p">,</span> <span class="n">Q2</span><span class="p">],</span> <span class="p">[</span><span class="n">rSAS_fun_Q1</span><span class="p">,</span> <span class="n">rSAS_fun_Q2</span><span class="p">],</span> <span class="n">ST_init</span><span class="o">=</span><span class="n">ST_init</span><span class="p">,</span>
+                     <span class="n">mode</span><span class="o">=</span><span class="s">&#39;time&#39;</span><span class="p">,</span> <span class="n">dt</span> <span class="o">=</span> <span class="mf">1.</span><span class="p">,</span> <span class="n">n_substeps</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">C_in</span><span class="o">=</span><span class="n">C_J</span><span class="p">,</span> <span class="n">C_old</span><span class="o">=</span><span class="n">C_old</span><span class="p">)</span>
+<span class="c"># Let&#39;s pull these out to make the outputs from rsas crystal clear</span>
+<span class="n">PQ1</span> <span class="o">=</span> <span class="n">outputs</span><span class="p">[</span><span class="s">&#39;PQ&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">PQ2</span> <span class="o">=</span> <span class="n">outputs</span><span class="p">[</span><span class="s">&#39;PQ&#39;</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">C_outi</span> <span class="o">=</span> <span class="n">outputs</span><span class="p">[</span><span class="s">&#39;C_out&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">ST</span> <span class="o">=</span> <span class="n">outputs</span><span class="p">[</span><span class="s">&#39;ST&#39;</span><span class="p">]</span>
+<span class="c"># ==================================</span>
+<span class="c"># Plot the transit time distribution</span>
+<span class="c"># ==================================</span>
 <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">clf</span><span class="p">()</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;Q Cl mg/l&#39;</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s">&#39;Observed&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;Q Predicted Cl mg/l&#39;</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s">&#39;Predicted&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">PQ1</span><span class="p">[:,</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="s">&#39;b--&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s">&#39;rsas model, Q1&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">PQ2</span><span class="p">[:,</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="s">&#39;b:&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s">&#39;rsas model, Q2&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">PQ_exact</span><span class="p">,</span> <span class="s">&#39;r-.&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s">&#39;analytical solution&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span><span class="mi">4</span><span class="o">*</span><span class="n">T_0</span><span class="p">))</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s">&#39;P_Q(T)&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s">&#39;age T&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s">&#39;Cumulative transit time distribution&#39;</span><span class="p">)</span>
+<span class="c">#%%</span>
+<span class="c"># =====================================================================</span>
+<span class="c"># Convolve the transit time distributions with the input concentrations</span>
+<span class="c"># =====================================================================</span>
+<span class="c"># Use the estimated transit time distribution and input timeseries to estimate</span>
+<span class="c"># the output timeseries</span>
+<span class="n">C_outb</span><span class="p">,</span> <span class="n">C_mod_raw</span><span class="p">,</span> <span class="n">observed_fraction</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">transport</span><span class="p">(</span><span class="n">PQ1</span><span class="p">,</span> <span class="n">C_J</span><span class="p">,</span> <span class="n">C_old</span><span class="p">)</span>
+<span class="c"># Calculate the output concentration using the analytical TTD</span>
+<span class="n">T</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N</span><span class="o">*</span><span class="mf">100.</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">100</span>
+<span class="n">PQe</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">T</span><span class="o">/</span><span class="n">T_0</span><span class="p">),</span> <span class="p">(</span><span class="n">N</span><span class="o">*</span><span class="mf">100.</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">T</span>
+<span class="n">C_oute</span><span class="p">,</span> <span class="n">C_mod_raw</span><span class="p">,</span> <span class="n">observed_fraction</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">transport</span><span class="p">(</span><span class="n">PQe</span><span class="p">,</span> <span class="n">C_J</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="mi">100</span><span class="p">),</span> <span class="n">C_old</span><span class="p">)</span>
+<span class="c"># Plot the result</span>
+<span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">clf</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">C_outb</span><span class="p">,</span> <span class="s">&#39;b-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s">&#39;rsas.transport&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">C_outi</span><span class="p">,</span> <span class="s">&#39;g--&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s">&#39;rsas internal&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">T</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">C_oute</span><span class="p">,</span> <span class="s">&#39;r-.&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s">&#39;rsas internal&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s">&#39;Concentration [-]&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s">&#39;time&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s">&#39;Outflow concentration&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="unsteady-py">
+<h3>unsteady.py<a class="headerlink" href="#unsteady-py" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-python"><div class="highlight"><pre><span class="c"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;Storage selection (SAS) functions: example with one flux out at steady state</span>
+
+<span class="sd">Runs the rSAS model for a synthetic dataset with one flux in and out</span>
+<span class="sd">and steady state flow</span>
+
+<span class="sd">Theory is presented in:</span>
+<span class="sd">Harman, C. J. (2014), Time-variable transit time distributions and transport:</span>
+<span class="sd">Theory and application to storage-dependent transport of chloride in a watershed,</span>
+<span class="sd">Water Resour. Res., 51, doi:10.1002/2014WR015707.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">division</span>
+<span class="kn">import</span> <span class="nn">rsas</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="kn">as</span> <span class="nn">pd</span>
+<span class="c"># Initializes the random number generator so we always get the same result</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="c"># =====================================</span>
+<span class="c"># Load the input data</span>
+<span class="c"># =====================================</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s">&#39;Q1.csv&#39;</span><span class="p">,</span> <span class="n">index_col</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">parse_dates</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="c"># length of the dataset</span>
+<span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+<span class="c"># The individual timeseries can be pulled out of the dataframe</span>
+<span class="n">J</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;J&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+<span class="n">Q1</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;Q1&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+<span class="n">C_J</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;C_J&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+<span class="n">C_Q1</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;C_Q1&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+<span class="n">S</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;S&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+<span class="c"># =================</span>
+<span class="c"># Initial condition</span>
+<span class="c"># =================</span>
+<span class="c"># Unknown initial age distribution, so just set this to zeros</span>
+<span class="n">ST_init</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+<span class="c"># =========================</span>
+<span class="c"># Parameters needed by rsas</span>
+<span class="c"># =========================</span>
+<span class="c"># The concentration of water older than the start of observations</span>
+<span class="n">C_old</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">C_J</span><span class="p">)</span>
+<span class="c"># =========================</span>
+<span class="c"># Uniform case</span>
+<span class="c"># =========================</span>
+<span class="c"># Parameters for the rSAS function</span>
+<span class="n">S_0</span> <span class="o">=</span> <span class="mf">20.</span>
+<span class="c"># The uniform distribution extends between S_T=a and S_T=b.</span>
+<span class="n">Q_rSAS_fun_type</span> <span class="o">=</span> <span class="s">&#39;uniform&#39;</span>
+<span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.</span>
+<span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="o">*</span> <span class="n">S_0</span>
+<span class="n">Q_rSAS_fun_parameters</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">]</span>
+<span class="n">rSAS_fun_Q1</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">create_function</span><span class="p">(</span><span class="n">Q_rSAS_fun_type</span><span class="p">,</span> <span class="n">Q_rSAS_fun_parameters</span><span class="p">)</span>
+<span class="c"># =============</span>
+<span class="c"># Run the model</span>
+<span class="c"># =============</span>
+<span class="c"># Run it</span>
+<span class="n">outputs</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">J</span><span class="p">,</span> <span class="p">[</span><span class="n">Q1</span><span class="p">],</span> <span class="p">[</span><span class="n">rSAS_fun_Q1</span><span class="p">],</span> <span class="n">ST_init</span><span class="o">=</span><span class="n">ST_init</span><span class="p">,</span>
+                     <span class="n">mode</span><span class="o">=</span><span class="s">&#39;time&#39;</span><span class="p">,</span> <span class="n">dt</span> <span class="o">=</span> <span class="mf">1.</span><span class="p">,</span> <span class="n">n_substeps</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<span class="c"># Let&#39;s pull these out to make the outputs from rsas crystal clear</span>
+<span class="n">PQ1</span> <span class="o">=</span> <span class="n">outputs</span><span class="p">[</span><span class="s">&#39;PQ&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">ST</span> <span class="o">=</span> <span class="n">outputs</span><span class="p">[</span><span class="s">&#39;ST&#39;</span><span class="p">]</span>
+<span class="c"># ==================================</span>
+<span class="c"># Plot the transit time distribution</span>
+<span class="c"># ==================================</span>
+<span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">clf</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">PQ1</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s">&#39;P_Q(T)&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s">&#39;age T&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s">&#39;Cumulative transit time distribution&#39;</span><span class="p">)</span>
+<span class="c">#%%</span>
+<span class="c"># =====================================================================</span>
+<span class="c"># Convolve the transit time distributions with the input concentrations</span>
+<span class="c"># =====================================================================</span>
+<span class="c"># Use the estimated transit time distribution and input timeseries to estimate</span>
+<span class="c"># the output timeseries</span>
+<span class="n">C_out</span><span class="p">,</span> <span class="n">C_mod_raw</span><span class="p">,</span> <span class="n">observed_fraction</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">transport</span><span class="p">(</span><span class="n">PQ1</span><span class="p">,</span> <span class="n">C_J</span><span class="p">,</span> <span class="n">C_old</span><span class="p">)</span>
+<span class="c"># Plot the result</span>
+<span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="c">#plt.clf()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s">&#39;datetime&#39;</span><span class="p">],</span> <span class="n">C_out</span><span class="p">,</span> <span class="s">&#39;b-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s">&#39;rsas predictions&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s">&#39;datetime&#39;</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;C_Q1&#39;</span><span class="p">],</span> <span class="s">&#39;r.&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s">&#39;observed&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s">&#39;Concentration [-]&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s">&#39;time&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s">&#39;Outflow concentration&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
 </div>
@@ -269,7 +402,7 @@ Water Resour. Res., 51, doi:10.1002/2014WR015707.</p>
 <code class="descclassname">rsas.</code><code class="descname">solve</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#rsas.solve" title="Permalink to this definition">¶</a></dt>
 <dd><p>Solve the rSAS model for given fluxes</p>
 <dl class="docutils">
-<dt>Args: </dt>
+<dt>Args:</dt>
 <dd><dl class="first last docutils">
 <dt>J <span class="classifier-delimiter">:</span> <span class="classifier">n x 1 float64 ndarray</span></dt>
 <dd>Timestep-averaged inflow timeseries</dd>
@@ -277,7 +410,7 @@ Water Resour. Res., 51, doi:10.1002/2014WR015707.</p>
 <dd>Timestep-averaged outflow timeseries. Must have same units and length as J.
 For multiple outflows, each column represents one outflow</dd>
 <dt>rSAS_fun <span class="classifier-delimiter">:</span> <span class="classifier">rSASFunctionClass or list of rSASFunctionClass generated by rsas.create_function</span></dt>
-<dd>The number of rSASFunctionClass in this list must be the same as the 
+<dd>The number of rSASFunctionClass in this list must be the same as the
 number of columns in Q if Q is an ndarray, or elements in Q if it is a list.</dd>
 </dl>
 </dd>
@@ -289,10 +422,10 @@ outer loop of the numerical solution</p>
 <dl class="last docutils">
 <dt><code class="docutils literal"><span class="pre">mode='age'</span></code></dt>
 <dd>This is the original implementation used to generate the results in the paper.
-It is slightly faster than the &#8216;time&#8217; implementation, but doesn&#8217;t have the
-memory-saving &#8220;full_outputs=False&#8221; option. There is no option to calculate 
+It is now deprecated in favor of the mode=&#8217;time&#8217; option. It lacks the
+memory-saving &#8220;full_outputs=False&#8221; option. There is no option to calculate
 output concentration timeseries inline. The calculated transit time
-distributions must convolved with an input concentration timeseries after the code has 
+distributions must convolved with an input concentration timeseries after the code has
 completed.</dd>
 <dt><code class="docutils literal"><span class="pre">mode='time'</span></code></dt>
 <dd>Slower, but easier to understand and build on than the &#8216;age&#8217; mode.
@@ -311,12 +444,12 @@ initial condition is ST_init=np.zeros(len(J) + 1).</dd>
 <dt>dt <span class="classifier-delimiter">:</span> <span class="classifier">float (default 1)</span></dt>
 <dd>Timestep, assuming same units as J</dd>
 <dt>n_substeps <span class="classifier-delimiter">:</span> <span class="classifier">int (default 1)</span></dt>
-<dd>(mode=&#8217;age&#8217; only) If n_substeps&gt;1, the timesteps are subdivided to allow a more accurate
+<dd>If n_substeps&gt;1, the timesteps are subdivided to allow a more accurate
 solution. Default is 1, which is also the value used in Harman (2015)</dd>
-<dt>n_iterations <span class="classifier-delimiter">:</span> <span class="classifier">int (default 3)</span></dt>
-<dd>Number of iterations to converge on a consistent solution. Convergence 
-in Harman (2015) was very fast, and n_iterations=3 was adequate (also 
-the default value here)</dd>
+<dt>inc_tol <span class="classifier-delimiter">:</span> <span class="classifier">float (default 1E-10)</span></dt>
+<dd>Tolerance for the iterative solution for the ST matrix</dd>
+<dt>max_iter <span class="classifier-delimiter">:</span> <span class="classifier">int (default 25)</span></dt>
+<dd>Maximum number of iterations to converge on a consistent solution.</dd>
 <dt>full_outputs <span class="classifier-delimiter">:</span> <span class="classifier">bool (default True)</span></dt>
 <dd>Option to return the full state variables array ST the cumulative
 transit time distributions PQ1, PQ2, and other variables</dd>
@@ -324,12 +457,12 @@ transit time distributions PQ1, PQ2, and other variables</dd>
 <dd>Optional timeseries of inflow concentrations to convolved
 with the computed transit time distribution for the first flux in Q</dd>
 <dt>C_old <span class="classifier-delimiter">:</span> <span class="classifier">float (default None)</span></dt>
-<dd>Optional concentration of the &#8216;unobserved fraction&#8217; of Q (from inflows 
-prior to the start of the simulation) for correcting C_out. If ST_init is not given 
-or set to all zeros, the unobserved fraction will be assumed to lie on the 
+<dd>Optional concentration of the &#8216;unobserved fraction&#8217; of Q (from inflows
+prior to the start of the simulation) for correcting C_out. If ST_init is not given
+or set to all zeros, the unobserved fraction will be assumed to lie on the
 diagonal of the PQ matrix. Otherwise it will be assumed to be the bottom row.</dd>
 <dt>evapoconcentration <span class="classifier-delimiter">:</span> <span class="classifier">bool (default False)</span></dt>
-<dd>If True, it will be assumed that species in C_in are not removed 
+<dd>If True, it will be assumed that species in C_in are not removed
 by the second flux, and instead become increasingly concentrated in
 storage.</dd>
 </dl>
@@ -356,7 +489,7 @@ transport with evapoconcentration. (full_outputs=True only)</dd>
 <dd>Should always be within tolerances of zero, unless something is very
 wrong. (full_outputs=True only)</dd>
 <dt>&#8216;C_out&#8217; <span class="classifier-delimiter">:</span> <span class="classifier">list of numpy float64 1D array</span></dt>
-<dd>If C_in is supplied, C_out is the timeseries of outflow concentration 
+<dd>If C_in is supplied, C_out is the timeseries of outflow concentration
 in Q1. (mode=&#8217;time&#8217; only)</dd>
 </dl>
 </dd>
@@ -379,8 +512,8 @@ column derived from the initial condition.</p>
 <dt>rSAS_type <span class="classifier-delimiter">:</span> <span class="classifier">str</span></dt>
 <dd>A string indicating the requested rSAS functional form.</dd>
 <dt>params <span class="classifier-delimiter">:</span> <span class="classifier">n x k float64 ndarray</span></dt>
-<dd>Parameters for the rSAS function. The number of columns and 
-their meaning depends on which rSAS type is chosen. For all the rSAS 
+<dd>Parameters for the rSAS function. The number of columns and
+their meaning depends on which rSAS type is chosen. For all the rSAS
 functions implemented so far, each row corresponds with a timestep.</dd>
 </dl>
 </dd>
@@ -500,7 +633,7 @@ timestep</dd>
 <dt>observed_fraction_on_diagonal <span class="classifier-delimiter">:</span> <span class="classifier">Boolean</span></dt>
 <dd>Location of the observed fraction. &#8216;True&#8217; (default) assumes observed
 fraction is on the diagonal of the PQ matrix. This is appropriate
-if no initial condition for ST is given. Otherwise use &#8216;False&#8217; to 
+if no initial condition for ST is given. Otherwise use &#8216;False&#8217; to
 use the oldest value of T for which PQ is given (i.e. the last row)</dd>
 </dl>
 </dd>
@@ -546,8 +679,9 @@ use the oldest value of T for which PQ is given (i.e. the last row)</dd>
 <li><a class="reference internal" href="#getting-rsas">Getting rsas</a></li>
 <li><a class="reference internal" href="#installation">Installation</a></li>
 <li><a class="reference internal" href="#examples">Examples</a><ul>
-<li><a class="reference internal" href="#simple-timestepping-py">simple_timestepping.py</a></li>
-<li><a class="reference internal" href="#lower-hafren-py">lower_hafren.py</a></li>
+<li><a class="reference internal" href="#steady-py">steady.py</a></li>
+<li><a class="reference internal" href="#steady2-py">steady2.py</a></li>
+<li><a class="reference internal" href="#unsteady-py">unsteady.py</a></li>
 </ul>
 </li>
 </ul>
