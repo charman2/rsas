@@ -62,15 +62,20 @@ Examples
 Example uses of rsas are available in the ./examples directory. These should 
 run right out of the box.
 
-simple_timestepping.py
+steady.py
 -------------------------------
 
-.. literalinclude:: ../examples/simple_timestepping.py
+.. literalinclude:: ../examples/steady.py
 
-lower_hafren.py
+steady2.py
 ------------------------
 
-.. literalinclude:: ../examples/lower_hafren.py
+.. literalinclude:: ../examples/steady2.py
+
+unsteady.py
+------------------------
+
+.. literalinclude:: ../examples/unsteady.py
 
 Further reading
 ===============
