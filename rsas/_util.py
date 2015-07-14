@@ -84,7 +84,7 @@ def transport(PQ, C_in, C_old):
     code = r"""
     int i, j, k;
     for(j=0; j<N; j++)
-        for(i=0; i<j; i++)
+        for(i=0; i<=j; i++)
             {
             k = j - i;
             C_mod_raw(j) += C_in(k) * pQe(i,j);
@@ -134,7 +134,7 @@ def transport_with_evapoconcentration(PQ, thetaQ, thetaS, C_in, C_old, observed_
     code = r"""
     int i, j, k;
     for(j=0; j<N; j++)
-        for(i=0; i<j; i++)
+        for(i=0; i<=j; i++)
             {
             k = j - i;
             C_mod_raw(j) += C_in(k) * pQe(i,j);
@@ -198,7 +198,7 @@ def transport_with_evapoconcentration_1st_order_reaction(PQ, thetaQ, thetaS, C_i
     code = r"""
     int i, j, k;
     for(j=0; j<N; j++)
-        for(i=0; i<j; i++)
+        for(i=0; i<=j; i++)
             {
             k = j - i;
             C_mod_raw(j) += C_in(k) * C_temp1(i) * pQe(i,j) + C_temp2(i) * pQe(i,j);
@@ -243,7 +243,7 @@ def transport_with_decay(PQ, C_in, C_old, k1=0.0):
     code = r"""
     int i, j, k;
     for(j=0; j<N; j++)
-        for(i=0; i<j; i++)
+        for(i=0; i<=j; i++)
             {
             k = j - i;
             C_mod_raw(j) += C_in(k) * decay(i) * pQe(i,j);

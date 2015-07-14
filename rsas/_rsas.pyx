@@ -52,7 +52,7 @@ def _map_substeps(fun, np.ndarray[dtype_t, ndim=1] X, n_substeps=1):
 
 
 def solve(J, Q, rSAS_fun, mode='time', ST_init = None, dt = 1, n_substeps = 1,
-          n_iterations = 3, full_outputs=True, C_in=None, C_old=None, evapoconcentration=False):
+          max_iter = 25, full_outputs=True, C_in=None, C_old=None, evapoconcentration=False):
     """Solve the rSAS model for given fluxes
 
     Args:
@@ -72,7 +72,7 @@ def solve(J, Q, rSAS_fun, mode='time', ST_init = None, dt = 1, n_substeps = 1,
 
             ``mode='age'``
                 This is the original implementation used to generate the results in the paper.
-                It is slightly faster than the 'time' implementation, but doesn't have the
+                It is now deprecated in favor of the mode='time' option. It lacks the
                 memory-saving "full_outputs=False" option. There is no option to calculate
                 output concentration timeseries inline. The calculated transit time
                 distributions must convolved with an input concentration timeseries after the code has
@@ -92,12 +92,12 @@ def solve(J, Q, rSAS_fun, mode='time', ST_init = None, dt = 1, n_substeps = 1,
         dt : float (default 1)
             Timestep, assuming same units as J
         n_substeps : int (default 1)
-            (mode='age' only) If n_substeps>1, the timesteps are subdivided to allow a more accurate
+            If n_substeps>1, the timesteps are subdivided to allow a more accurate
             solution. Default is 1, which is also the value used in Harman (2015)
-        n_iterations : int (default 3)
-            Number of iterations to converge on a consistent solution. Convergence
-            in Harman (2015) was very fast, and n_iterations=3 was adequate (also
-            the default value here)
+        inc_tol : float (default 1E-10)
+            Tolerance for the iterative solution for the ST matrix
+        max_iter : int (default 25)
+            Maximum number of iterations to converge on a consistent solution.
         full_outputs : bool (default True)
             Option to return the full state variables array ST the cumulative
             transit time distributions PQ1, PQ2, and other variables
@@ -179,35 +179,36 @@ def solve(J, Q, rSAS_fun, mode='time', ST_init = None, dt = 1, n_substeps = 1,
         dt = np.float64(dt)
     if n_substeps is not None:
         n_substeps = np.int(n_substeps)
-    if n_iterations is not None:
-        n_iterations = np.int(n_iterations)
+    if max_iter is not None:
+        max_iter = np.int(max_iter)
     if full_outputs==False and C_in is None:
         warn('No output will be generated! Are you sure you mean to do this?')
     # Run implemented solvers
+    _verbose('Running')
     if mode=='age':
-        # Wrap cdf_all in function to handle substeppin
+        # Wrap cdf_all in function to handle substepping
         for i in range(len(rSAS_fun)):
             fun = rSAS_fun[i].cdf_all
             rSAS_fun[i].cdf_all = lambda X:_map_substeps(fun, X, n_substeps)
         if len(Q)==1:
             result = _solve_all_by_age_1out(J, Q[0], rSAS_fun[0],
                                           ST_init=ST_init, dt=dt,
-                                          n_substeps=n_substeps, n_iterations=n_iterations, C_in=C_in, C_old=C_old)
+                                          n_substeps=n_substeps, max_iter=max_iter, C_in=C_in, C_old=C_old)
         elif len(Q)==2:
             result = _solve_all_by_age_2out(J, Q[0], rSAS_fun[0], Q[1], rSAS_fun[1],
                                           ST_init=ST_init, dt=dt,
-                                          n_substeps=n_substeps, n_iterations=n_iterations, C_in=C_in,
+                                          n_substeps=n_substeps, max_iter=max_iter, C_in=C_in,
                                           C_old=C_old, evapoconcentration=evapoconcentration)
         else:
             raise NotImplementedError('mode==''age'' only implemented for 1 or 2 outflows.')
     elif mode=='time':
         if len(Q)==1:
             result = _solve_all_by_time_1out(J, Q[0], rSAS_fun[0],
-                                              ST_init = ST_init, dt = dt, n_iterations=n_iterations,
-                                              full_outputs=full_outputs, C_in=C_in, C_old=C_old)
+                                          ST_init=ST_init, dt=dt, n_substeps=n_substeps, max_iter=max_iter,
+                                          full_outputs=full_outputs, C_in=C_in, C_old=C_old)
         elif len(Q)==2:
             result = _solve_all_by_time_2out(J, Q[0], rSAS_fun[0], Q[1], rSAS_fun[1],
-                                          ST_init=ST_init, dt=dt, n_iterations=n_iterations,
+                                          ST_init=ST_init, dt=dt, n_substeps=n_substeps, max_iter=max_iter,
                                           full_outputs=full_outputs, C_in=C_in,
                                           C_old=C_old, evapoconcentration=evapoconcentration)
         else:
@@ -247,7 +248,8 @@ def _solve_all_by_age_2out(
         np.ndarray[dtype_t, ndim=1] ST_init = None,
         dtype_t dt = 1,
         int n_substeps = 1,
-        int n_iterations = 3,
+        int max_iter = 25,
+        float inc_tol = 1E-10,
         full_outputs=True, C_in=None, C_old=None, evapoconcentration=False):
     """Private function solving the rSAS model with 2 outflows, solved using the original age-based algorithm
 
@@ -301,6 +303,7 @@ def _solve_all_by_age_2out(
     dPQ1u = np.zeros(N, dtype=np.float64)
     dPQ2u = np.zeros(N, dtype=np.float64)
     STu = np.zeros(N, dtype=np.float64)
+    STu_prev = np.zeros(N, dtype=np.float64)
     PQ1u = np.zeros(N, dtype=np.float64)
     PQ2u = np.zeros(N, dtype=np.float64)
     dQ1outu = np.zeros(N, dtype=np.float64)
@@ -330,8 +333,12 @@ def _solve_all_by_age_2out(
             # cumulative transit time distributions, PQ1 and PQ2
             PQ1u[:] = np.where(dSTp>0., rSAS_fun1.cdf_all(STu), PQ1p[1:])
             PQ2u[:] = np.where(dSTp>0., rSAS_fun2.cdf_all(STu), PQ2p[1:])
-            # Iterate to refine these estimates
-            for it in range(n_iterations):
+            # Iterate to refine the estimates
+            iteration = 0
+            max_increment = np.inf
+            STu_prev[:] = STu[:]
+            while (max_increment > inc_tol) & (iteration < max_iter):
+                STu, STu_prev = STu_prev, STu
                 # Increments of the cumulative transit time distribution
                 # approximate the values of the transit time PDF at this age
                 dPQ1u[:] = (PQ1u - PQ1p[1:])
@@ -347,6 +354,10 @@ def _solve_all_by_age_2out(
                 STu[:] = STp[1:] + dSTu
                 PQ1u[:] = np.where(dSTp>0., rSAS_fun1.cdf_all(STu), PQ1p[1:])
                 PQ2u[:] = np.where(dSTp>0., rSAS_fun2.cdf_all(STu), PQ2p[1:])
+                iteration += 1
+                max_increment = np.max(np.abs(STu-STu_prev))
+            if iteration == max_iter:
+                _verbose('Warning: maximum number of iterations reached at agestep ' + str(i))
             # Update the 'previous solution' record in preparation of the
             # next solution timestep
             STp[1:] = STu[:]
@@ -397,8 +408,9 @@ def _solve_all_by_age_1out(
         np.ndarray[dtype_t, ndim=1] ST_init = None,
         dtype_t dt = 1,
         int n_substeps = 1,
-        int n_iterations = 3, C_in=None, C_old=None):
-    """Private function solving the rSAS model with 2 outflows, solved using the original age-based algorithm
+        float inc_tol = 1E-10,
+        int max_iter = 25, C_in=None, C_old=None):
+    """Private function solving the rSAS model with 1 outflows, solved using the original age-based algorithm
 
     See the docstring for rsas.solve for moreinformation
     """
@@ -442,6 +454,7 @@ def _solve_all_by_age_1out(
     dSTu = np.zeros(N, dtype=np.float64)
     dPQ1u = np.zeros(N, dtype=np.float64)
     STu = np.zeros(N, dtype=np.float64)
+    STu_prev = np.zeros(N, dtype=np.float64)
     PQ1u = np.zeros(N, dtype=np.float64)
     dQ1outu = np.zeros(N, dtype=np.float64)
     _verbose('done')
@@ -465,8 +478,12 @@ def _solve_all_by_age_1out(
             # Use this estimate to get an initial estimate of the
             # cumulative transit time distributions, PQ1 and PQ2
             PQ1u[:] = np.where(dSTp>0., rSAS_fun1.cdf_all(STu), PQ1p[1:])
-            # Iterate to refine these estimates
-            for it in range(n_iterations):
+            # Iterate to refine the estimates
+            iteration = 0
+            max_increment = np.inf
+            STu_prev[:] = STu[:]
+            while (max_increment > inc_tol) & (iteration < max_iter):
+                STu, STu_prev = STu_prev, STu
                 # Increments of the cumulative transit time distribution
                 # approximate the values of the transit time PDF at this age
                 dPQ1u[:] = (PQ1u - PQ1p[1:])
@@ -479,6 +496,10 @@ def _solve_all_by_age_1out(
                 dSTu[:] = np.maximum(dSTp - dt * dQ1outu, 0.)
                 STu[:] = STp[1:] + dSTu
                 PQ1u[:] = np.where(dSTp>0., rSAS_fun1.cdf_all(STu), PQ1p[1:])
+                iteration += 1
+                max_increment = np.max(np.abs(STu-STu_prev))
+            if iteration == max_iter:
+                _verbose('Warning: maximum number of iterations reached at agestep ' + str(i))
             # Update the 'previous solution' record in preparation of the
             # next solution timestep
             STp[1:] = STu[:]
@@ -519,7 +540,9 @@ def _solve_all_by_time_2out(np.ndarray[dtype_t, ndim=1] J,
         rSAS_fun2,
         np.ndarray[dtype_t, ndim=1] ST_init = None,
         dtype_t dt = 1,
-        int n_iterations = 3,
+        int max_iter = 25,
+        int n_substeps = 1,
+        float inc_tol = 1E-10,
         full_outputs=True, C_in=None, C_old=None, evapoconcentration=False):
     """rSAS model with 2 outfluxes, solved by looping over timesteps.
 
@@ -540,21 +563,26 @@ def _solve_all_by_time_2out(np.ndarray[dtype_t, ndim=1] J,
     # Some lengths
     timeseries_length = len(J)
     max_age = len(ST_init) - 1
+    M = max_age * n_substeps
+    # Expand the inputs to accomodate the substep solution points
+    dt = dt / n_substeps
     # Create arrays to hold intermediate solutions
     _verbose('...initializing arrays...')
-    pQ1p = np.zeros(max_age, dtype=np.float64)
-    pQ2p = np.zeros(max_age, dtype=np.float64)
-    STu = np.zeros(max_age+1, dtype=np.float64)
-    dQ1outu = np.zeros(max_age, dtype=np.float64)
-    dQ2outu = np.zeros(max_age, dtype=np.float64)
-    pQ1u = np.zeros(max_age, dtype=np.float64)
-    pQ2u = np.zeros(max_age, dtype=np.float64)
-    dSTu = np.zeros(max_age, dtype=np.float64)
-    dSTp = np.zeros(max_age, dtype=np.float64)
+    pQ1p = np.zeros(M, dtype=np.float64)
+    pQ2p = np.zeros(M, dtype=np.float64)
+    STu = np.zeros(M+1, dtype=np.float64)
+    STu_prev = np.zeros(M+1, dtype=np.float64)
+    dQ1outu = np.zeros(M, dtype=np.float64)
+    dQ2outu = np.zeros(M, dtype=np.float64)
+    pQ1u = np.zeros(M, dtype=np.float64)
+    pQ2u = np.zeros(M, dtype=np.float64)
+    dSTu = np.zeros(M, dtype=np.float64)
+    dSTp = np.zeros(M, dtype=np.float64)
     if C_in is not None:
         if evapoconcentration:
-            Q1out_total = np.zeros((max_age), dtype=np.float64)
-        C_out = np.zeros(max_age, dtype=np.float64)
+            Q1out_total = np.zeros(M, dtype=np.float64)
+        C_out = np.zeros(timeseries_length, dtype=np.float64)
+        C_in_r = C_in.repeat(n_substeps)
     # Create arrays to hold the state variables if they are to be outputted
     if full_outputs:
         ST = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
@@ -570,9 +598,11 @@ def _solve_all_by_time_2out(np.ndarray[dtype_t, ndim=1] J,
     # Now we solve the governing equation
     # Set up initial and boundary conditions
     dSTp[0] = J[0] * dt
-    dSTp[1:max_age] = np.diff(ST_init[:max_age])
-    pQ1p[:] = np.diff(rSAS_fun1.cdf_i(ST_init, 0))
-    pQ2p[:] = np.diff(rSAS_fun2.cdf_i(ST_init, 0))
+    dSTp[1:M] = np.diff(ST_init).repeat(n_substeps)[0:M-1]/n_substeps
+    pQ1p[0] = rSAS_fun1.cdf_i(dSTp[:1], 0)
+    pQ1p[1:] = np.diff(rSAS_fun1.cdf_i(np.cumsum(dSTp), 0))
+    pQ2p[0] = rSAS_fun2.cdf_i(dSTp[:1], 0)
+    pQ2p[1:] = np.diff(rSAS_fun2.cdf_i(np.cumsum(dSTp), 0))
     if full_outputs:
         ST[:,0] = ST_init[:]
         PQ1[:,0] = rSAS_fun1.cdf_i(ST_init, 0)
@@ -581,66 +611,80 @@ def _solve_all_by_time_2out(np.ndarray[dtype_t, ndim=1] J,
     _verbose('...solving...')
     # Primary solution loop over time t
     for i in range(timeseries_length):
-        # dSTp is the increments of ST at the previous age and previous timestep.
-        # It is therefore our first estimate of the increments of ST at this
-        # age and timestep. Add up the increments to get an estimate of ST
-        STu[0] = 0
-        STu[1:max_age+1] = np.cumsum(dSTp)
-        # Use this estimate to get an initial estimate of the
-        # transit time distribution PDFs, pQ1 and pQ2
-        pQ1u[:max_age] = np.diff(rSAS_fun1.cdf_i(STu, i))
-        pQ2u[:max_age] = np.diff(rSAS_fun2.cdf_i(STu, i))
-        # Iterate to refine these estimates
-        for it in range(n_iterations):
-            # Estimate the outflow over the interval of time dt with an age
-            # T as the discharge over the timestep times the average of the
-            # PDF values at the start and the end of the timestep
-            dQ1outu[0] = Q1[i] * pQ1u[0]
-            dQ1outu[1:max_age] = Q1[i] * (pQ1u[1:max_age] + pQ1p[1:max_age])/2
-            dQ2outu[0] = Q2[i] * pQ2u[0]
-            dQ2outu[1:max_age] = Q2[i] * (pQ2u[1:max_age] + pQ2p[1:max_age])/2
-            # Update the estimate of dST, ST and the TTD PDFs to
-            # account for these outflows
-            dSTu[:max_age] = np.maximum(dSTp - dt * dQ1outu - dt * dQ2outu, 0.)
-            STu[1:max_age+1] = np.cumsum(dSTu)
-            pQ1u[:max_age] = np.diff(rSAS_fun1.cdf_i(STu, i))
-            pQ2u[:max_age] = np.diff(rSAS_fun2.cdf_i(STu, i))
-        # Update the 'previous solution' record in preparation of the
-        # next solution timestep
-        if i<timeseries_length-1:
-            dSTp[1:max_age] = dSTu[:max_age-1]
+    # Loop over substeps
+        for k in range(n_substeps):
+            # dSTp is the increments of ST at the previous age and previous timestep.
+            # It is therefore our first estimate of the increments of ST at this
+            # age and timestep. Add up the increments to get an estimate of ST
+            STu[0] = 0
+            STu[1:M+1] = np.cumsum(dSTp)
+            # Use this estimate to get an initial estimate of the
+            # transit time distribution PDFs, pQ1 and pQ2
+            pQ1u[:M] = np.diff(rSAS_fun1.cdf_i(STu, i))
+            pQ2u[:M] = np.diff(rSAS_fun2.cdf_i(STu, i))
+            # Iterate to refine the estimates
+            iteration = 0
+            max_increment = np.inf
+            STu_prev[:] = STu[:]
+            while (max_increment > inc_tol) & (iteration < max_iter):
+                STu, STu_prev = STu_prev, STu
+                # Estimate the outflow over the interval of time dt with an age
+                # T as the discharge over the timestep times the average of the
+                # PDF values at the start and the end of the timestep
+                dQ1outu[0] = Q1[i] * pQ1u[0]
+                dQ1outu[1:M] = Q1[i] * (pQ1u[1:M] + pQ1p[1:M])/2
+                dQ2outu[0] = Q2[i] * pQ2u[0]
+                dQ2outu[1:M] = Q2[i] * (pQ2u[1:M] + pQ2p[1:M])/2
+                # Update the estimate of dST, ST and the TTD PDFs to
+                # account for these outflows
+                dSTu[:M] = np.maximum(dSTp - dt * dQ1outu - dt * dQ2outu, 0.)
+                STu[1:M+1] = np.cumsum(dSTu)
+                pQ1u[:M] = np.diff(rSAS_fun1.cdf_i(STu, i))
+                pQ2u[:M] = np.diff(rSAS_fun2.cdf_i(STu, i))
+                iteration += 1
+                max_increment = np.max(np.abs(STu-STu_prev))
+            if iteration == max_iter:
+                _verbose('Warning: maximum number of iterations reached at timestep ' + str(i))
+                _verbose('Try increasing the number of substeps, or the number of iterations')
+            # Update the 'previous solution' record in preparation of the
+            # next solution timestep
+            dSTp[1:M] = dSTu[:M-1]
             # Incorporate the boundary condition
-            dSTp[0] = J[i+1] * dt
-            pQ1p[1:max_age] = pQ1u[:max_age-1]
-            pQ2p[1:max_age] = pQ2u[:max_age-1]
+            if (k==n_substeps-1)&(i<timeseries_length-1):
+                dSTp[0] = J[i+1] * dt
+            else:
+                dSTp[0] = J[i] * dt
+            pQ1p[1:M] = pQ1u[:M-1]
+            pQ2p[1:M] = pQ2u[:M-1]
             pQ1p[0] = 0
             pQ2p[0] = 0
-        # Progressive evaluation of outflow concentration
+            # Progressive evaluation of outflow concentration
         if C_in is not None:
+            j = i * n_substeps + k
             if evapoconcentration:
                 # If evapoconcentration=True, keep a running tab of how much of
                 # each timestep's inflow has become outflow
-                Q1out_total[:i+1] = Q1out_total[:i+1] + dQ1outu[i::-1]
+                Q1out_total[:j+1] = Q1out_total[:j+1] + dQ1outu[j::-1]
                 # The enriched concentration in storge is the initial mass
                 # divided by the volume that has not evaporated
                 # C_in * J / (Q1out_total + dSTu)
                 # Get the current discharge concentration as the sum of previous
                 # (weighted) inputs, accounting for evapoconcentration
-                C_out[i] = np.sum(np.where(J[i::-1]>0, pQ1u[:i+1] * C_in[i::-1] * J[i::-1] / (Q1out_total[i::-1] + dSTu[:i+1]), 0.))
+                C_out[i] = np.sum(np.where(J[j::-1]>0, pQ1u[:j+1] * C_in_r[j::-1] * J[i::-1] / (Q1out_total[i::-1] + dSTu[:i+1]), 0.))
             else:
                 # Get the current discharge concentration as the sum of previous
                 # (weighted) inputs
-                C_out[i] = np.sum(pQ1u[:i+1] * C_in[i::-1])
+                C_out[i] = np.sum(pQ1u[:j+1] * C_in_r[j::-1])
             if C_old:
                 # Add the concentration of the 'unobserved fraction'
-                C_out[i] += (1 - np.sum(pQ1u[:i+1])) * C_old
+                C_out[i] += (1 - np.sum(pQ1u[:j+1])) * C_old
         # Store the result, if needed
         if full_outputs:
-            ST[:max_age+1, i+1] =   STu[:max_age+1]
-            PQ1[1:max_age+1, i+1] = np.cumsum(pQ1u)
-            PQ2[1:max_age+1, i+1] = np.cumsum(pQ2u)
-            Q1out[1:max_age+1, i+1] = Q1out[:max_age, i] + dQ1outu[:max_age]
-            Q2out[1:max_age+1, i+1] = Q2out[:max_age, i] + dQ2outu[:max_age]
+            ST[:max_age+1, i+1] =   STu[:M+1:n_substeps]
+            PQ1[:max_age+1, i+1] = np.r_[0., np.cumsum(pQ1u)][::n_substeps]
+            PQ2[:max_age+1, i+1] = np.r_[0., np.cumsum(pQ2u)][::n_substeps]
+            Q1out[1:max_age+1, i+1] = Q1out[:max_age, i] + dQ1outu[:M:n_substeps]
+            Q2out[1:max_age+1, i+1] = Q2out[:max_age, i] + dQ2outu[:M:n_substeps]
             theta1[1:i+2, i+1] = np.where(J[i::-1]>0, Q1out[1:i+2, i+1] / J[i::-1], 0.)
             theta2[1:i+2, i+1] = np.where(J[i::-1]>0, Q2out[1:i+2, i+1] / J[i::-1], 0.)
             thetaS[1:i+2, i+1] = np.where(J[i::-1]>0, (ST[1:i+2, i+1] - ST[:i+1, i+1]) / J[i::-1], 0.)
@@ -664,7 +708,9 @@ def _solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
         rSAS_fun1,
         np.ndarray[dtype_t, ndim=1] ST_init = None,
         dtype_t dt = 1,
-        int n_iterations = 3,
+        int max_iter = 25,
+        int n_substeps = 1,
+        float inc_tol = 1E-10,
         full_outputs=True, C_in=None, C_old=None):
     """rSAS model with 1 flux, solved by looping over timesteps.
 
@@ -673,7 +719,7 @@ def _solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
     """
     # Initialization
     # Define some variables
-    cdef int k, i, timeseries_length, num_inputs, max_age
+    cdef int k, i, j, timeseries_length, num_inputs, max_age
     cdef np.float64_t start_time
     cdef np.ndarray[dtype_t, ndim=2] ST, PQ1, Q1out, theta1, thetaS, MassBalance
     cdef np.ndarray[dtype_t, ndim=1] STu, pQ1u, pQ1p, dQ1outu, dSTu, dSTp, C_out
@@ -686,36 +732,36 @@ def _solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
     # Some lengths
     timeseries_length = len(J)
     max_age = len(ST_init) - 1
+    M = max_age * n_substeps
+    # Expand the inputs to accomodate the substep solution points
+    dt = dt / n_substeps
     # Create arrays to hold intermediate solutions
     _verbose('...initializing arrays...')
-    pQ1p = np.zeros(max_age, dtype=np.float64)
-    pQ2p = np.zeros(max_age, dtype=np.float64)
-    STu = np.zeros(max_age+1, dtype=np.float64)
-    dQ1outu = np.zeros(max_age, dtype=np.float64)
-    dQ2outu = np.zeros(max_age, dtype=np.float64)
-    pQ1u = np.zeros(max_age, dtype=np.float64)
-    pQ2u = np.zeros(max_age, dtype=np.float64)
-    dSTu = np.zeros(max_age, dtype=np.float64)
-    dSTp = np.zeros(max_age, dtype=np.float64)
+    pQ1p = np.zeros(M, dtype=np.float64)
+    STu = np.zeros(M+1, dtype=np.float64)
+    STu_prev = np.zeros(M+1, dtype=np.float64)
+    dQ1outu = np.zeros(M, dtype=np.float64)
+    pQ1u = np.zeros(M, dtype=np.float64)
+    dSTu = np.zeros(M, dtype=np.float64)
+    dSTp = np.zeros(M, dtype=np.float64)
     if C_in is not None:
-        C_out = np.zeros(max_age, dtype=np.float64)
+        C_out = np.zeros(timeseries_length, dtype=np.float64)
+        C_in_r = C_in.repeat(n_substeps)
     # Create arrays to hold the state variables if they are to be outputted
     if full_outputs:
         ST = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
         PQ1 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        PQ2 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
         Q1out = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        Q2out = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
         theta1 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        theta2 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
         thetaS = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
         MassBalance = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
     _verbose('done')
     # Now we solve the governing equation
     # Set up initial and boundary conditions
     dSTp[0] = J[0] * dt
-    dSTp[1:max_age] = np.diff(ST_init[:max_age])
-    pQ1p[:] = np.diff(rSAS_fun1.cdf_i(ST_init, 0))
+    dSTp[1:M] = np.diff(ST_init).repeat(n_substeps)[0:M-1]/n_substeps
+    pQ1p[0] = rSAS_fun1.cdf_i(dSTp[:1], 0)
+    pQ1p[1:] = np.diff(rSAS_fun1.cdf_i(np.cumsum(dSTp), 0))
     if full_outputs:
         ST[:,0] = ST_init[:]
         PQ1[:,0] = rSAS_fun1.cdf_i(ST_init, 0)
@@ -723,47 +769,61 @@ def _solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
     _verbose('...solving...')
     # Primary solution loop over time t
     for i in range(timeseries_length):
-        # dSTp is the increments of ST at the previous age and previous timestep.
-        # It is therefore our first estimate of the increments of ST at this
-        # age and timestep.
-        STu[0]=0
-        STu[1:max_age+1]=np.cumsum(dSTp)
-        #Use this estimate to get an initial estimate of the
-        # transit time distribution PDF, pQ1
-        pQ1u[0] = rSAS_fun1.cdf_i(dSTp[:1], i)
-        pQ1u[1:max_age] = np.diff(rSAS_fun1.cdf_i(np.cumsum(dSTp), i))
-        # Iterate to refine the estimates
-        for it in range(n_iterations):
-            # Estimate the outflow over the interval of time dt with an age
-            # T as the discharge over the timestep times the average of the
-            # PDF values at the start and the end of the timestep
-            dQ1outu[0] = Q1[i] * pQ1u[0]
-            dQ1outu[1:max_age] = Q1[i] * (pQ1u[1:max_age] + pQ1p[1:max_age])/2
-            # Update the estimate of dST and the TTD PDF to
-            # account for the outflow
-            dSTu[:max_age] = np.maximum(dSTp - dt * dQ1outu - dt * dQ2outu, 0.)
-            STu[1:max_age+1] = np.cumsum(dSTu)
-            pQ1u[0] = rSAS_fun1.cdf_i(dSTu[:1], i)
-            pQ1u[1:max_age] = np.diff(rSAS_fun1.cdf_i(np.cumsum(dSTu), i))
-        # Update the 'previous solution' record in preparation of the
-        # next solution timestep
-        if i<timeseries_length-1:
-            dSTp[1:max_age] = dSTu[:max_age-1]
-            pQ1p[1:max_age] = pQ1u[:max_age-1]
+    # Loop over substeps
+        for k in range(n_substeps):
+            # dSTp is the increments of ST at the previous age and previous timestep.
+            # It is therefore our first estimate of the increments of ST at this
+            # age and timestep.
+            STu[0]=0
+            STu[1:M+1]=np.cumsum(dSTp)
+            # Use this estimate to get an initial estimate of the
+            # transit time distribution PDF, pQ1
+            pQ1u[0] = rSAS_fun1.cdf_i(dSTp[:1], i)
+            pQ1u[1:M] = np.diff(rSAS_fun1.cdf_i(np.cumsum(dSTp), i))
+            # Iterate to refine the estimates
+            iteration = 0
+            max_increment = np.inf
+            STu_prev[:] = STu[:]
+            while (max_increment > inc_tol) & (iteration < max_iter):
+                STu, STu_prev = STu_prev, STu
+                # Estimate the outflow over the interval of time dt with an age
+                # T as the discharge over the timestep times the average of the
+                # PDF values at the start and the end of the timestep
+                dQ1outu[0] = Q1[i] * pQ1u[0]
+                dQ1outu[1:M] = Q1[i] * (pQ1u[1:M] + pQ1p[1:M])/2
+                # Update the estimate of dST and the TTD PDF to
+                # account for the outflow
+                dSTu[:M] = np.maximum(dSTp - dt * dQ1outu, 0.)
+                STu[1:M+1] = np.cumsum(dSTu)
+                pQ1u[0] = rSAS_fun1.cdf_i(dSTu[:1], i)
+                pQ1u[1:M] = np.diff(rSAS_fun1.cdf_i(np.cumsum(dSTu), i))
+                iteration += 1
+                max_increment = np.max(np.abs(STu-STu_prev))
+            if iteration == max_iter:
+                _verbose('Warning: maximum number of iterations reached at timestep ' + str(i))
+                _verbose('Try increasing the number of substeps, or the number of iterations')
+            # Update the 'previous solution' record in preparation of the
+            # next solution timestep
+            dSTp[1:M] = dSTu[:M-1]
+            pQ1p[1:M] = pQ1u[:M-1]
             # Incorporate the boundary condition
-            dSTp[0] = J[i+1] * dt
+            if (k==n_substeps-1)&(i<timeseries_length-1):
+                dSTp[0] = J[i+1] * dt
+            else:
+                dSTp[0] = J[i] * dt
             # This vale is never used
             pQ1p[0] = 0
-        # Progressive evaluation of outflow concentration
+            # Progressive evaluation of outflow concentration
         if C_in is not None:
-            C_out[i] = np.sum(pQ1u[:i+1] * C_in[i::-1])
+            j = i * n_substeps + k
+            C_out[i] = np.sum(pQ1u[:j+1] * C_in_r[j::-1])
             if C_old:
-                C_out[i] += (1 - np.sum(pQ1u[:i+1])) * C_old
+                C_out[i] += (1 - np.sum(pQ1u[:j+1])) * C_old
         # Store the result, if needed
         if full_outputs:
-            ST[:max_age+1, i+1] =   STu[:max_age+1]
-            PQ1[1:max_age+1, i+1] = np.cumsum(pQ1u)
-            Q1out[1:max_age+1, i+1] = Q1out[:max_age, i] + dQ1outu[:max_age]
+            ST[:max_age+1, i+1] =   STu[:M+1:n_substeps]
+            PQ1[:max_age+1, i+1] = np.r_[0., np.cumsum(pQ1u)][::n_substeps]
+            Q1out[1:max_age+1, i+1] = Q1out[:max_age, i] + dQ1outu[:M:n_substeps]
             theta1[1:i+2, i+1] = np.where(J[i::-1]>0, Q1out[1:i+2, i+1] / J[i::-1], 0.)
             thetaS[1:i+2, i+1] = np.where(J[i::-1]>0, (ST[1:i+2, i+1] - ST[:i+1, i+1]) / J[i::-1], 0.)
             MassBalance[1:i+2, i+1] = np.diff(ST[:i+2, i+1]) - dt * (J[i::-1] - Q1out[1:i+2, i+1])
