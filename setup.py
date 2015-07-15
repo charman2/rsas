@@ -6,10 +6,11 @@ Created on Tue Jan 14 17:57:18 2014
 """
 
 try:
-    from setuptools import setup
+        from setuptools import setup
+        from setuptools import Extension
 except ImportError:
-    from distutils.core import setup
-from distutils.extension import Extension
+        from distutils.core import setup
+        from distutils.extension import Extension
 from Cython.Distutils import build_ext
 import numpy
 
