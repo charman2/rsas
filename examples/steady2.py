@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Storage selection (SAS) functions: example with one flux out at steady state
+"""Storage selection (SAS) functions: example with two flux out at steady state
 
-Runs the rSAS model for a synthetic dataset with one flux in and out
+Runs the rSAS model for a synthetic dataset with two flux in and out
 and steady state flow
 
 Theory is presented in:
@@ -29,8 +29,8 @@ T = np.arange(N+1)
 PQ_exact = 1 - np.exp(-T/T_0)
 # Steady-state flow in and out for N timesteps
 J = np.ones(N) * Q_0 * 2
-Q1 = np.ones(N) * Q_0
-Q2 = np.ones(N) * Q_0
+Q1 = np.ones(N) * Q_0 * 1.9
+Q2 = np.ones(N) * Q_0 * 0.1
 # A random timeseries of concentrations
 C_J = -np.log(np.random.rand(N))
 # =========================
@@ -43,11 +43,17 @@ C_old = 0.
 # =========================
 # Parameters for the rSAS function
 # The uniform distribution extends between S_T=a and S_T=b.
+Q_rSAS_fun_type = 'gamma'
+Smin = np.ones(N) * 0.
+S0 = np.ones(N) * S_0
+alpha = np.ones(N) * 0.5
+Q_rSAS_fun_parameters = np.c_[Smin, S0, alpha]
+rSAS_fun_Q1 = rsas.create_function(Q_rSAS_fun_type, Q_rSAS_fun_parameters)
+
 Q_rSAS_fun_type = 'uniform'
 a = np.ones(N) * 0.
-b = np.ones(N) * S_0
+b = np.ones(N) * S_0/5.
 Q_rSAS_fun_parameters = np.c_[a, b]
-rSAS_fun_Q1 = rsas.create_function(Q_rSAS_fun_type, Q_rSAS_fun_parameters)
 rSAS_fun_Q2 = rsas.create_function(Q_rSAS_fun_type, Q_rSAS_fun_parameters)
 # =================
 # Initial condition
@@ -95,7 +101,7 @@ fig = plt.figure(2)
 plt.clf()
 plt.plot(np.arange(N)+1, C_outb, 'b-', label='rsas.transport', lw=2)
 plt.plot(np.arange(N)+1, C_outi, 'g--', label='rsas internal', lw=2)
-plt.plot(T[1:], C_oute, 'r-.', label='rsas internal', lw=2)
+plt.plot(T[1:], C_oute, 'r-.', label='rsas exact', lw=2)
 plt.legend(loc=0)
 plt.ylabel('Concentration [-]')
 plt.xlabel('time')

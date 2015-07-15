@@ -37,7 +37,7 @@ ST_init = np.zeros(N + 1)
 # Parameters needed by rsas
 # =========================
 # The concentration of water older than the start of observations
-C_old = np.mean(C_J)
+C_old = np.mean(C_J[J>0])
 # =========================
 # Uniform case
 # =========================
@@ -54,7 +54,7 @@ rSAS_fun_Q1 = rsas.create_function(Q_rSAS_fun_type, Q_rSAS_fun_parameters)
 # =============
 # Run it
 outputs = rsas.solve(J, [Q1], [rSAS_fun_Q1], ST_init=ST_init,
-                     mode='time', dt = 1., n_substeps=5)
+                     mode='time', dt = 1., n_substeps=5, C_in=C_J, C_old=C_old)
 # Let's pull these out to make the outputs from rsas crystal clear
 PQ1 = outputs['PQ'][0]
 ST = outputs['ST']

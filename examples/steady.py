@@ -62,6 +62,8 @@ outputs = rsas.solve(J, [Q1], [rSAS_fun_Q1], ST_init=ST_init,
 PQ1 = outputs['PQ'][0]
 C_outi = outputs['C_out'][0]
 ST = outputs['ST']
+# ROWS of ST, PQ1 are T - ages
+# COLUMNS of ST, PQ1 are t - times
 # ==================================
 # Plot the transit time distribution
 # ==================================
@@ -91,7 +93,7 @@ fig = plt.figure(2)
 plt.clf()
 plt.plot(np.arange(N)+1, C_outb, 'b-', label='rsas.transport', lw=2)
 plt.plot(np.arange(N)+1, C_outi, 'g--', label='rsas internal', lw=2)
-plt.plot(T[1:], C_oute, 'r-.', label='rsas internal', lw=2)
+plt.plot(T[1:], C_oute, 'r-.', label='exact', lw=2)
 plt.legend(loc=0)
 plt.ylabel('Concentration [-]')
 plt.xlabel('time')
