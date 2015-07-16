@@ -41,16 +41,15 @@ def transport(np.ndarray[dtype_t, ndim=2] PQ, np.ndarray[dtype_t, ndim=1] C_in, 
         observed_fraction : numpy float64 1D array, length N.
             Fraction of outflow older than the first timestep
     """
-    cdef int N, t, T, ti
+    cdef int N, t, T
     cdef np.ndarray[dtype_t, ndim=2] pQe
     cdef np.ndarray[dtype_t, ndim=1] C_mod_raw, observed_fraction
     N = len(C_in)
     C_mod_raw = np.zeros(N, dtype=np.float64)
     pQe = np.diff(PQ[:,1:],axis=0)
-    for T in range(pQe.shape[0]):
-        for t in range(pQe.shape[1]):
-            ti = t - T
-            C_mod_raw[t] += C_in[ti] * pQe[T,t]
+    for t in range(pQe.shape[1]):
+        for T in range(t+1):
+            C_mod_raw[t] += C_in[t-T] * pQe[T,t]
     observed_fraction = np.diag(PQ[1:,1:]).copy()
     C_mod = (C_mod_raw + (1-observed_fraction) * C_old)
     return C_mod, C_mod_raw, observed_fraction
