@@ -26,7 +26,7 @@ from scipy.special import erfc
 from scipy.interpolate import interp1d
 from scipy.optimize import fmin, minimize_scalar, fsolve
 import time
-import rsas._util
+#import rsas._util
 
 # for debugging
 debug = True
@@ -102,9 +102,11 @@ def solve(J, Q, rSAS_fun, mode='time', ST_init = None, dt = 1, n_substeps = 1,
             Option to return the full state variables array ST the cumulative
             transit time distributions PQ1, PQ2, and other variables
         C_in : n x 1 float64 ndarray (default None)
+            (mode='time' only)
             Optional timeseries of inflow concentrations to convolved
             with the computed transit time distribution for the first flux in Q
         C_old : float (default None)
+            (mode='time' only)
             Optional concentration of the 'unobserved fraction' of Q (from inflows
             prior to the start of the simulation) for correcting C_out. If ST_init is not given
             or set to all zeros, the unobserved fraction will be assumed to lie on the
@@ -389,13 +391,15 @@ def _solve_all_by_age_2out(
         if np.mod(i+1,1000)==0:
             _verbose('...done ' + str(i+1) + ' of ' + str(max_age) + ' in ' + str(time.clock() - start_time) + ' seconds')
     # Evaluation of outflow concentration
-    if C_in is not None:
-        if evapoconcentration:
-            C_out, _, observed_fraction = rsas._util.transport_with_evapoconcentration(PQ1, theta1, thetaS, C_in, C_old)
-        else:
-            C_out, _, observed_fraction = rsas._util.transport(PQ1, C_in, C_old)
-        return C_out, ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance
-    else:
+    # this is not currently supported for mode='age'
+    #if C_in is not None:
+    #    if evapoconcentration:
+    #        C_out, _, observed_fraction = rsas._util.transport_with_evapoconcentration(PQ1, theta1, thetaS, C_in, C_old)
+    #    else:
+    #        C_out, _, observed_fraction = rsas._util.transport(PQ1, C_in, C_old)
+    #    return C_out, ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance
+    #else:
+    #    return ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance
         return ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance
 
 
@@ -524,10 +528,12 @@ def _solve_all_by_age_1out(
         if np.mod(i+1,1000)==0:
             _verbose('...done ' + str(i+1) + ' of ' + str(max_age) + ' in ' + str(time.clock() - start_time) + ' seconds')
     # Evaluation of outflow concentration
-    if C_in is not None:
-        C_out, _, observed_fraction = rsas._util.transport(PQ1, C_in, C_old)
-        return C_out, ST, PQ1, Q1out, theta1, thetaS, MassBalance
-    else:
+    # this is not currently supported for mode='age'
+    #if C_in is not None:
+    #    C_out, _, observed_fraction = rsas._util.transport(PQ1, C_in, C_old)
+    #    return C_out, ST, PQ1, Q1out, theta1, thetaS, MassBalance
+    #else:
+    #    return ST, PQ1, Q1out, theta1, thetaS, MassBalance
         return ST, PQ1, Q1out, theta1, thetaS, MassBalance
 
 

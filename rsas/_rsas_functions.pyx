@@ -24,7 +24,7 @@ from scipy.special import erfc
 from scipy.interpolate import interp1d
 from scipy.optimize import fmin, minimize_scalar, fsolve
 import time
-import rsas._util
+#import rsas._util
 
 # for debugging
 debug = True
@@ -88,8 +88,8 @@ def create_function(rSAS_type, np.ndarray[dtype_t, ndim=2] params):
                      'SS_invgauss':_SS_invgauss_rSAS,
                      'SS_mobileimmobile':_SS_mobileimmobile_rSAS,
                      'uniform':_uniform_rSAS,
-                     'kumaraswami':_kumaraswami_rSAS,
-                     'from_steady_state_TTD':_from_steady_state_TTD_rSAS}
+                     'kumaraswami':_kumaraswami_rSAS}
+                     #'from_steady_state_TTD':_from_steady_state_TTD_rSAS}
     return function_dict[rSAS_type](params)
 
 class rSASFunctionClass:
@@ -302,16 +302,16 @@ class _SS_mobileimmobile_rSAS(rSASFunctionClass):
                 return_cdf[j] = self.Omega(ST[j])
         return return_cdf
 
-class _from_steady_state_TTD_rSAS(rSASFunctionClass):
-    def __init__(self, np.ndarray[dtype_t, ndim=2] params):
-        params = params.copy()
-        self.Q0 = params[0,0]
-        self.CDF = params[:,0]
-        self.CDF[0] = 0.
-        self.ST = rsas._util.steady_state_ST_from_TTD_1out(self.Q0, self.CDF, dt=1)
-        self.rSAS_unsorted = interp1d(self.ST, self.CDF, bounds_error=False, fill_value=1., assume_sorted=False)
-        self.rSAS_sorted = interp1d(self.ST, self.CDF, bounds_error=False, fill_value=1., assume_sorted=True)
-    def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
-        return self.rSAS_unsorted(ST)
-    def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
-        return self.rSAS_sorted(ST)
+#class _from_steady_state_TTD_rSAS(rSASFunctionClass):
+#    def __init__(self, np.ndarray[dtype_t, ndim=2] params):
+#        params = params.copy()
+#        self.Q0 = params[0,0]
+#        self.CDF = params[:,0]
+#        self.CDF[0] = 0.
+#        self.ST = rsas._util.steady_state_ST_from_TTD_1out(self.Q0, self.CDF, dt=1)
+#        self.rSAS_unsorted = interp1d(self.ST, self.CDF, bounds_error=False, fill_value=1., assume_sorted=False)
+#        self.rSAS_sorted = interp1d(self.ST, self.CDF, bounds_error=False, fill_value=1., assume_sorted=True)
+#    def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
+#        return self.rSAS_unsorted(ST)
+#    def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
+#        return self.rSAS_sorted(ST)

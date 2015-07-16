@@ -15,8 +15,6 @@ from scipy.special import erfc
 from scipy.interpolate import interp1d
 from scipy.optimize import fmin, minimize_scalar, fsolve
 import time
-import rsas._util
-
 
 
 @cython.boundscheck(False)
