@@ -20,7 +20,7 @@ config = {
     'url': '',
     'download_url': '',
     'author_email': 'charman1@jhu.edu',
-    'version': '0.3',
+    'version': '0.4',
     'install_requires': ['nose', 'numpy', 'scipy', 'cython'],
     'packages' : ['rsas'],
     'scripts': [],
