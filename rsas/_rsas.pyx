@@ -858,7 +858,6 @@ def _solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
         return C_out
 
 
-
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
@@ -883,9 +882,9 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
     cdef np.ndarray[dtype_t, ndim=2] ST, thetaS, MassBalance
     cdef np.ndarray[dtype_t, ndim=1] STp, STu, C_out, dST_init, C_in_r
     cdef np.ndarray[dtype_t, ndim=2] PQ1, Q1out, theta1,
-    cdef np.ndarray[dtype_t, ndim=1] dQ1Tu, Q1T1, Q1T2, Q1T3, Q1T4, Q1Tu
+    cdef np.ndarray[dtype_t, ndim=1] dPQ1u, PQ11, PQ12, PQ13, PQ14, PQ1u
     cdef np.ndarray[dtype_t, ndim=2] PQ2, Q2out, theta2,
-    cdef np.ndarray[dtype_t, ndim=1] dQ2Tu, Q2T1, Q2T2, Q2T3, Q2T4, Q2Tu
+    cdef np.ndarray[dtype_t, ndim=1] dPQ2u, PQ21, PQ22, PQ23, PQ24, PQ2u
     cdef int numflux
     if Q2 is None:
         numflux = 1
@@ -901,22 +900,20 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
     STu = np.zeros(M+1, dtype=np.float64)
     STp = np.zeros(M+1, dtype=np.float64)
     PQ1u = np.zeros(M+1, dtype=np.float64)
-    pQ1u = np.zeros(M, dtype=np.float64)
-    Q1T1 = np.zeros(M+1, dtype=np.float64)
-    Q1T2 = np.zeros(M+1, dtype=np.float64)
-    Q1T3 = np.zeros(M+1, dtype=np.float64)
-    Q1T4 = np.zeros(M+1, dtype=np.float64)
-    Q1Tu = np.zeros(M+1, dtype=np.float64)
-    dQ1Tu = np.zeros(M, dtype=np.float64)
+    PQ11 = np.zeros(M+1, dtype=np.float64)
+    PQ12 = np.zeros(M+1, dtype=np.float64)
+    PQ13 = np.zeros(M+1, dtype=np.float64)
+    PQ14 = np.zeros(M+1, dtype=np.float64)
+    PQ1u = np.zeros(M+1, dtype=np.float64)
+    dPQ1u = np.zeros(M, dtype=np.float64)
     if numflux>1:
         PQ2u = np.zeros(M+1, dtype=np.float64)
-        pQ2u = np.zeros(M, dtype=np.float64)
-        Q2T1 = np.zeros(M+1, dtype=np.float64)
-        Q2T2 = np.zeros(M+1, dtype=np.float64)
-        Q2T3 = np.zeros(M+1, dtype=np.float64)
-        Q2T4 = np.zeros(M+1, dtype=np.float64)
-        Q2Tu = np.zeros(M+1, dtype=np.float64)
-        dQ2Tu = np.zeros(M, dtype=np.float64)
+        PQ21 = np.zeros(M+1, dtype=np.float64)
+        PQ22 = np.zeros(M+1, dtype=np.float64)
+        PQ23 = np.zeros(M+1, dtype=np.float64)
+        PQ24 = np.zeros(M+1, dtype=np.float64)
+        PQ2u = np.zeros(M+1, dtype=np.float64)
+        dPQ2u = np.zeros(M, dtype=np.float64)
     if C_in is not None:
         C_out = np.zeros(timeseries_length, dtype=np.float64)
         C_in_r = C_in.repeat(n_substeps)
@@ -957,33 +954,32 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
         if numflux==1:
             for k in range(n_substeps):
                 STu, STp = STp, STu
-                Q1T1[:] = Q1[i] * rSAS_fun1.cdf_i( STp                      , i)
-                Q1T2[:] = Q1[i] * rSAS_fun1.cdf_i( STp + (J[i] - Q1T1) * h/2, i)
-                Q1T3[:] = Q1[i] * rSAS_fun1.cdf_i( STp + (J[i] - Q1T2) * h/2, i)
-                Q1T4[:] = Q1[i] * rSAS_fun1.cdf_i( STp + (J[i] - Q1T3) * h  , i)
-                Q1Tu[:] = (Q1T1 + 2*Q1T2 + 2*Q1T3 + Q1T4) / 6.
-                STu[1:M+1] = np.maximum(0., STp[0:M] + h * (J[i] - Q1Tu[0:M]))
-            PQ1u[:] = rSAS_fun1.cdf_i(STu, i)
+                PQ11[:] = rSAS_fun1.cdf_i( STp                              , i)
+                PQ12[:] = rSAS_fun1.cdf_i( STp + (J[i] - Q1[i] * PQ11) * h/2, i)
+                PQ13[:] = rSAS_fun1.cdf_i( STp + (J[i] - Q1[i] * PQ12) * h/2, i)
+                PQ14[:] = rSAS_fun1.cdf_i( STp + (J[i] - Q1[i] * PQ13) * h  , i)
+                PQ1u[:] = (PQ11 + 2*PQ12 + 2*PQ13 + PQ14) / 6.
+                STu[1:M+1] = STp[0:M] + h * (J[i] - Q1[i] * PQ1u[0:M])
+            dPQ1u[:] = np.diff(PQ1u)
         else:
             for k in range(n_substeps):
                 STu, STp = STp, STu
-                Q1T1[:] = Q1[i] * rSAS_fun1.cdf_i( STp                             , i)
-                Q2T1[:] = Q2[i] * rSAS_fun2.cdf_i( STp                             , i)
-                Q1T2[:] = Q1[i] * rSAS_fun1.cdf_i( STp + (J[i] - Q1T1 - Q2T1) * h/2, i)
-                Q2T2[:] = Q2[i] * rSAS_fun2.cdf_i( STp + (J[i] - Q1T1 - Q2T1) * h/2, i)
-                Q1T3[:] = Q1[i] * rSAS_fun1.cdf_i( STp + (J[i] - Q1T2 - Q2T2) * h/2, i)
-                Q2T3[:] = Q2[i] * rSAS_fun2.cdf_i( STp + (J[i] - Q1T2 - Q2T2) * h/2, i)
-                Q1T4[:] = Q1[i] * rSAS_fun1.cdf_i( STp + (J[i] - Q1T3 - Q2T3) * h  , i)
-                Q2T4[:] = Q2[i] * rSAS_fun2.cdf_i( STp + (J[i] - Q1T3 - Q2T3) * h  , i)
-                Q1Tu[:] = (Q1T1 + 2*Q1T2 + 2*Q1T3 + Q1T4) / 6.
-                Q2Tu[:] = (Q2T1 + 2*Q2T2 + 2*Q2T3 + Q2T4) / 6.
-                STu[1:M+1] = np.maximum(0., STp[0:M] + h * (J[i] - Q1Tu[0:M] - Q2Tu[0:M]))
-            PQ1u[:] = rSAS_fun1.cdf_i(STu, i)
-            PQ2u[:] = rSAS_fun2.cdf_i(STu, i)
+                PQ11[:] = rSAS_fun1.cdf_i( STp                                     , i)
+                PQ21[:] = rSAS_fun2.cdf_i( STp                                     , i)
+                PQ12[:] = rSAS_fun1.cdf_i( STp + (J[i] - Q1[i] * PQ11 - Q2[i] * PQ21) * h/2, i)
+                PQ22[:] = rSAS_fun2.cdf_i( STp + (J[i] - Q1[i] * PQ11 - Q2[i] * PQ21) * h/2, i)
+                PQ13[:] = rSAS_fun1.cdf_i( STp + (J[i] - Q1[i] * PQ12 - Q2[i] * PQ22) * h/2, i)
+                PQ23[:] = rSAS_fun2.cdf_i( STp + (J[i] - Q1[i] * PQ12 - Q2[i] * PQ22) * h/2, i)
+                PQ14[:] = rSAS_fun1.cdf_i( STp + (J[i] - Q1[i] * PQ13 - Q2[i] * PQ23) * h  , i)
+                PQ24[:] = rSAS_fun2.cdf_i( STp + (J[i] - Q1[i] * PQ13 - Q2[i] * PQ23) * h  , i)
+                PQ1u[:] = (PQ11 + 2*PQ12 + 2*PQ13 + PQ14) / 6.
+                PQ2u[:] = (PQ21 + 2*PQ22 + 2*PQ23 + PQ24) / 6.
+                STu[1:M+1] = STp[0:M] + h * (J[i] - Q1[i] * PQ1u[0:M] - Q2[i] * PQ2u[0:M])
+            dPQ1u[:] = np.diff(PQ1u)
+            dPQ2u[:] = np.diff(PQ2u)
         if C_in is not None:
-            pQ1u[:] = np.diff(PQ1u)
             n = i * n_substeps + k
-            C_out[i] = np.sum(pQ1u[:n+1] * C_in_r[n::-1])
+            C_out[i] = np.sum(dPQ1u[:n+1] * C_in_r[n::-1])
             if C_old:
                 C_out[i] += (1 - PQ1u[n+1]) * C_old
         # Store the result, if needed
@@ -991,8 +987,7 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
             if numflux==1:
                 ST[:max_age+1, i+1] = STu[:M+1:n_substeps]
                 PQ1[:max_age+1, i+1] = PQ1u[:M+1:n_substeps]
-                dQ1Tu = np.diff(Q1Tu)
-                Q1out[1:max_age+1, i+1] = Q1out[:max_age, i] + dQ1Tu[:M:n_substeps]
+                Q1out[1:max_age+1, i+1] = Q1out[:max_age, i] + Q1[i] * dPQ1u[:M:n_substeps]
                 theta1[1:i+2, i+1] = np.where(J[i::-1]>0, Q1out[1:i+2, i+1] / J[i::-1], 0.)
                 thetaS[1:i+2, i+1] = np.where(J[i::-1]>0, (ST[1:i+2, i+1] - ST[:i+1, i+1]) / J[i::-1], 0.)
                 MassBalance[1:i+2, i+1] = np.diff(ST[:i+2, i+1]) - h * (J[i::-1] - Q1out[1:i+2, i+1])
@@ -1000,11 +995,11 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
             else:
                 ST[:max_age+1, i+1] = STu[:M+1:n_substeps]
                 PQ1[:max_age+1, i+1] = PQ1u[:M+1:n_substeps]
-                dQ1Tu = np.diff(Q1Tu)
-                Q1out[1:max_age+1, i+1] = Q1out[:max_age, i] + dQ1Tu[:M:n_substeps]
+                dPQ1u = np.diff(PQ1u)
+                Q1out[1:max_age+1, i+1] = Q1out[:max_age, i] + Q1[i] * dPQ1u[:M:n_substeps]
                 PQ2[:max_age+1, i+1] = PQ2u[:M+1:n_substeps]
-                dQ2Tu = np.diff(Q2Tu)
-                Q2out[1:max_age+1, i+1] = Q2out[:max_age, i] + dQ2Tu[:M:n_substeps]
+                dPQ2u = np.diff(PQ2u)
+                Q2out[1:max_age+1, i+1] = Q2out[:max_age, i] + Q2[i] * dPQ2u[:M:n_substeps]
                 theta1[1:i+2, i+1] = np.where(J[i::-1]>0, Q1out[1:i+2, i+1] / J[i::-1], 0.)
                 theta2[1:i+2, i+1] = np.where(J[i::-1]>0, Q2out[1:i+2, i+1] / J[i::-1], 0.)
                 thetaS[1:i+2, i+1] = np.where(J[i::-1]>0, (ST[1:i+2, i+1] - ST[:i+1, i+1]) / J[i::-1], 0.)
