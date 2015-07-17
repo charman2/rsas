@@ -852,14 +852,9 @@ def _solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def f(float t, float dST,
-      float STp, float STu,
-      float PQp, float PQu,
+def f(float t, np.ndarray[dtype_t, ndim=1] dST,
       float Q, rSAS_fun, int i):
-    cdef np.float64_t STt, PQt
-    STt = STp + t * (STu - STp)
-    PQt = PQp + t * (PQu - PQp)
-    return -Q * (rSAS_fun.cdf_i(np.array([STt + dST]), i) - PQt)
+    return np.diff(Q * np.r_[0., rSAS_fun.cdf_i(np.cumsum(dST), i)])
 
 
 @cython.boundscheck(False)
@@ -880,9 +875,9 @@ def _solve_all_RK4_1out(np.ndarray[dtype_t, ndim=1] J,
     # Initialization
     # Define some variables
     cdef int k, i, j, n, timeseries_length, num_inputs, max_age
-    cdef np.float64_t start_time, h, k1, k2, k3, k4, dSTp0, STp0, PQ1p0
+    cdef np.float64_t start_time, h
     cdef np.ndarray[dtype_t, ndim=2] ST, PQ1, Q1out, theta1, thetaS, MassBalance
-    cdef np.ndarray[dtype_t, ndim=1] dSTu, dSTp, STu, STp, PQ1u, PQ1p, C_out, dST_init, dQ1outu
+    cdef np.ndarray[dtype_t, ndim=1] dSTp, dSTu, STu, PQ1u, pQ1u,C_out, dST_init, dQ1outu, k11, k12, k13, k14
     # Some lengths
     timeseries_length = len(J)
     max_age = len(ST_init) - 1
@@ -892,12 +887,14 @@ def _solve_all_RK4_1out(np.ndarray[dtype_t, ndim=1] J,
     _verbose('...initializing arrays...')
     dSTu = np.zeros(M, dtype=np.float64)
     dSTp = np.zeros(M, dtype=np.float64)
-    STp = np.zeros(M+1, dtype=np.float64)
     STu = np.zeros(M+1, dtype=np.float64)
-    PQ1p = np.zeros(M+1, dtype=np.float64)
     PQ1u = np.zeros(M+1, dtype=np.float64)
     pQ1u = np.zeros(M, dtype=np.float64)
     dQ1outu = np.zeros(M, dtype=np.float64)
+    k11 = np.zeros(M, dtype=np.float64)
+    k12 = np.zeros(M, dtype=np.float64)
+    k13 = np.zeros(M, dtype=np.float64)
+    k14 = np.zeros(M, dtype=np.float64)
     if C_in is not None:
         C_out = np.zeros(timeseries_length, dtype=np.float64)
         C_in_r = C_in.repeat(n_substeps)
@@ -930,32 +927,22 @@ def _solve_all_RK4_1out(np.ndarray[dtype_t, ndim=1] J,
     for i in range(timeseries_length):
     # Loop over substeps
         for k in range(n_substeps):
-            STu, STp = STp, STu
-            dSTu, dSTp = dSTp, dSTu
-            PQ1u, PQ1p = PQ1p, PQ1u
-            for j in range(0, M):
-                if j==0:
-                    dSTp0 = J[i] * h
-                    STp0 = 0
-                    PQ1p0 = 0
-                else:
-                    dSTp0 = dSTp[j-1]
-                    STp0 = STp[j-1]
-                    PQ1p0 = PQ1p[j-1]
-                k11 = f(0.0, dSTp0,            STp0, STu[j], PQ1p0, PQ1u[j], Q1[i], rSAS_fun1, i)
-                k12 = f(0.5, dSTp0 + k11 * h/2, STp0, STu[j], PQ1p0, PQ1u[j], Q1[i], rSAS_fun1, i)
-                k13 = f(0.5, dSTp0 + k12 * h/2, STp0, STu[j], PQ1p0, PQ1u[j], Q1[i], rSAS_fun1, i)
-                k14 = f(1.0, dSTp0 + k13 * h  , STp0, STu[j], PQ1p0, PQ1u[j], Q1[i], rSAS_fun1, i)
-                dQ1outu[j] = -(k11 + 2*k12 + 2*k13 + k14) / 6
-                dSTu[j] = max(0., dSTp0 - h * dQ1outu[j])
-                STu[j+1] = STu[j] + dSTu[j]
-                PQ1u[j+1] = rSAS_fun1.cdf_i(STu[j+1:j+2], i)
+            dSTp[:] = np.roll(dSTu, 1)
+            dSTp[0] = J[i] * h
+            k11[:] = f(0.0, dSTp            , Q1[i], rSAS_fun1, i)
+            k12[:] = f(0.5, dSTp - k11 * h/2, Q1[i], rSAS_fun1, i)
+            k13[:] = f(0.5, dSTp - k12 * h/2, Q1[i], rSAS_fun1, i)
+            k14[:] = f(1.0, dSTp - k13 * h  , Q1[i], rSAS_fun1, i)
+            dQ1outu[:] = (k11 + 2*k12 + 2*k13 + k14) / 6
+            dSTu[:] = np.maximum(0., dSTp - h * dQ1outu)
+        STu[1:M+1] = np.cumsum(dSTu)
+        PQ1u[:] = rSAS_fun1.cdf_i(STu, i)
         if C_in is not None:
-            pQ1u = np.diff(PQ1u)
+            pQ1u[:] = np.diff(PQ1u)
             n = i * n_substeps + k
             C_out[i] = np.sum(pQ1u[:n+1] * C_in_r[n::-1])
             if C_old:
-                C_out[i] += (1 - np.sum(pQ1u[:n+1])) * C_old
+                C_out[i] += (1 - PQ1u[n+1]) * C_old
         # Store the result, if needed
         if full_outputs:
             ST[:max_age+1, i+1] = STu[:M+1:n_substeps]
