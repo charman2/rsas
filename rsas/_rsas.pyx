@@ -215,6 +215,11 @@ def solve(J, Q, rSAS_fun, mode='time', ST_init = None, dt = 1, n_substeps = 1,
                                           C_old=C_old, evapoconcentration=evapoconcentration)
         else:
             raise NotImplementedError('mode==''time'' only implemented for 1 or 2 outflows.')
+    elif mode=='RK4':
+        if len(Q)==1:
+            result = _solve_all_RK4_1out(J, Q[0], rSAS_fun[0],
+                                          ST_init=ST_init, dt=dt, n_substeps=n_substeps, max_iter=max_iter,
+                                          full_outputs=full_outputs, C_in=C_in, C_old=C_old)
     else:
         raise TypeError('Incorrect solution mode. Must be ''age'' or ''time''')
     # handle the output
@@ -834,6 +839,132 @@ def _solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
             thetaS[1:i+2, i+1] = np.where(J[i::-1]>0, (ST[1:i+2, i+1] - ST[:i+1, i+1]) / J[i::-1], 0.)
             MassBalance[1:i+2, i+1] = np.diff(ST[:i+2, i+1]) - dt * (J[i::-1] - Q1out[1:i+2, i+1])
             MassBalance[i+2:max_age+1, i+1] = np.diff(ST[i+1:max_age+1, i+1]) - dt * (np.diff(ST_init[:max_age-i]) - Q1out[i+2:max_age+1, i+1])
+        if np.mod(i+1,1000)==0:
+            _verbose('...done ' + str(i+1) + ' of ' + str(max_age) + ' in ' + str(time.clock() - start_time) + ' seconds')
+    # Done. Return the outputs
+    if full_outputs and C_in is not None:
+        return C_out, ST, PQ1, Q1out, theta1, thetaS, MassBalance
+    elif full_outputs and C_in is None:
+        return ST, PQ1, Q1out, theta1, thetaS, MassBalance
+    elif not full_outputs and C_in is not None:
+        return C_out
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def f(float t, float dST,
+      float STp, float STu,
+      float PQp, float PQu,
+      float Q, rSAS_fun, int i):
+    cdef np.float64_t STt, PQt
+    STt = STp + t * (STu - STp)
+    PQt = PQp + t * (PQu - PQp)
+    return -Q * (rSAS_fun.cdf_i(np.array([STt + dST]), i) - PQt)
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def _solve_all_RK4_1out(np.ndarray[dtype_t, ndim=1] J,
+        np.ndarray[dtype_t, ndim=1] Q1,
+        rSAS_fun1,
+        np.ndarray[dtype_t, ndim=1] ST_init = None,
+        dtype_t dt = 1,
+        int max_iter = 25,
+        int n_substeps = 1,
+        float inc_tol = 1E-10,
+        full_outputs=True, C_in=None, C_old=None):
+    """rSAS model with 1 flux, Runge-Kutta method
+
+    See the docstring for rsas.solve for more information
+    """
+    # Initialization
+    # Define some variables
+    cdef int k, i, j, n, timeseries_length, num_inputs, max_age
+    cdef np.float64_t start_time, h, k1, k2, k3, k4, dSTp0, STp0, PQ1p0
+    cdef np.ndarray[dtype_t, ndim=2] ST, PQ1, Q1out, theta1, thetaS, MassBalance
+    cdef np.ndarray[dtype_t, ndim=1] dSTu, dSTp, STu, STp, PQ1u, PQ1p, C_out, dST_init, dQ1outu
+    # Some lengths
+    timeseries_length = len(J)
+    max_age = len(ST_init) - 1
+    M = max_age * n_substeps
+    h = dt / n_substeps
+    # Create arrays to hold intermediate solutions
+    _verbose('...initializing arrays...')
+    dSTu = np.zeros(M, dtype=np.float64)
+    dSTp = np.zeros(M, dtype=np.float64)
+    STp = np.zeros(M+1, dtype=np.float64)
+    STu = np.zeros(M+1, dtype=np.float64)
+    PQ1p = np.zeros(M+1, dtype=np.float64)
+    PQ1u = np.zeros(M+1, dtype=np.float64)
+    pQ1u = np.zeros(M, dtype=np.float64)
+    dQ1outu = np.zeros(M, dtype=np.float64)
+    if C_in is not None:
+        C_out = np.zeros(timeseries_length, dtype=np.float64)
+        C_in_r = C_in.repeat(n_substeps)
+    # Create arrays to hold the state variables if they are to be outputted
+    if full_outputs:
+        ST = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
+        PQ1 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
+        Q1out = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
+        theta1 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
+        thetaS = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
+        MassBalance = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
+    _verbose('done')
+    # Now we solve the governing equation
+    # Set up initial and boundary conditions
+    STu = np.zeros(M + 1, dtype=np.float64)
+    if ST_init is not None:
+        STu[0:M+1:n_substeps] = ST_init
+        if n_substeps>1:
+            dST_init = np.diff(ST_init)
+            for k in range(1, n_substeps):
+                STu[k:M+1:n_substeps] = STu[k-1:M:n_substeps] + dST_init/n_substeps
+        dSTu = np.diff(STu)
+        PQ1u = rSAS_fun1.cdf_i(STu, 0)
+    if full_outputs:
+        ST[:,0] = STu[0:M+1:n_substeps]
+        PQ1[:,0] = PQ1u[0:M+1:n_substeps]
+    start_time = time.clock()
+    _verbose('...solving...')
+    # Primary solution loop over time t
+    for i in range(timeseries_length):
+    # Loop over substeps
+        for k in range(n_substeps):
+            STu, STp = STp, STu
+            dSTu, dSTp = dSTp, dSTu
+            PQ1u, PQ1p = PQ1p, PQ1u
+            for j in range(0, M):
+                if j==0:
+                    dSTp0 = J[i] * h
+                    STp0 = 0
+                    PQ1p0 = 0
+                else:
+                    dSTp0 = dSTp[j-1]
+                    STp0 = STp[j-1]
+                    PQ1p0 = PQ1p[j-1]
+                k11 = f(0.0, dSTp0,            STp0, STu[j], PQ1p0, PQ1u[j], Q1[i], rSAS_fun1, i)
+                k12 = f(0.5, dSTp0 + k11 * h/2, STp0, STu[j], PQ1p0, PQ1u[j], Q1[i], rSAS_fun1, i)
+                k13 = f(0.5, dSTp0 + k12 * h/2, STp0, STu[j], PQ1p0, PQ1u[j], Q1[i], rSAS_fun1, i)
+                k14 = f(1.0, dSTp0 + k13 * h  , STp0, STu[j], PQ1p0, PQ1u[j], Q1[i], rSAS_fun1, i)
+                dQ1outu[j] = -(k11 + 2*k12 + 2*k13 + k14) / 6
+                dSTu[j] = max(0., dSTp0 - h * dQ1outu[j])
+                STu[j+1] = STu[j] + dSTu[j]
+                PQ1u[j+1] = rSAS_fun1.cdf_i(STu[j+1:j+2], i)
+        if C_in is not None:
+            pQ1u = np.diff(PQ1u)
+            n = i * n_substeps + k
+            C_out[i] = np.sum(pQ1u[:n+1] * C_in_r[n::-1])
+            if C_old:
+                C_out[i] += (1 - np.sum(pQ1u[:n+1])) * C_old
+        # Store the result, if needed
+        if full_outputs:
+            ST[:max_age+1, i+1] = STu[:M+1:n_substeps]
+            PQ1[:max_age+1, i+1] = PQ1u[:M+1:n_substeps]
+            Q1out[1:max_age+1, i+1] = Q1out[:max_age, i] + dQ1outu[:M:n_substeps]
+            theta1[1:i+2, i+1] = np.where(J[i::-1]>0, Q1out[1:i+2, i+1] / J[i::-1], 0.)
+            thetaS[1:i+2, i+1] = np.where(J[i::-1]>0, (ST[1:i+2, i+1] - ST[:i+1, i+1]) / J[i::-1], 0.)
+            MassBalance[1:i+2, i+1] = np.diff(ST[:i+2, i+1]) - h * (J[i::-1] - Q1out[1:i+2, i+1])
+            MassBalance[i+2:max_age+1, i+1] = np.diff(ST[i+1:max_age+1, i+1]) - h * (np.diff(ST_init[:max_age-i]) - Q1out[i+2:max_age+1, i+1])
         if np.mod(i+1,1000)==0:
             _verbose('...done ' + str(i+1) + ' of ' + str(max_age) + ' in ' + str(time.clock() - start_time) + ' seconds')
     # Done. Return the outputs
