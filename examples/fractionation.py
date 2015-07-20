@@ -21,7 +21,7 @@ np.random.seed(0)
 # =====================================
 # length of the dataset
 N = 100
-S_0 = 3. # <-- volume of the uniformly sampled store
+S_0 = 10. # <-- volume of the uniformly sampled store
 Q_0 = 1. # <-- steady-state flow rate
 T_0 = S_0 / (2 * Q_0)
 # Note that the analytical solution for the cumulative TTD is
@@ -66,6 +66,7 @@ MS_init = np.zeros((N + 1, 3))
 # Run the model
 # =============
 # Run it
+#TODO check PQ with n_substeps>1
 outputs = rsas.solve(J, Q, [rSAS_fun_Q1, rSAS_fun_Q2], ST_init=ST_init, MS_init=MS_init,
                      mode='RK4', dt = 1., n_substeps=1, C_J=C_J, C_old=C_old, alpha=alpha)
 # Let's pull these out to make the outputs from rsas crystal clear
