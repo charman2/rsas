@@ -224,7 +224,7 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
     cdef np.ndarray[dtype_t, ndim=2] PQ1, PQ2, PQ3, PQ4, PQn, dPQt
     cdef np.ndarray[dtype_t, ndim=2] ST, WaterBalance
     cdef np.ndarray[dtype_t, ndim=3] MS, SoluteBalance
-    cdef np.ndarray[dtype_t, ndim=3] mQ1, mQ2, mQ3, mQ4, mQn
+    cdef np.ndarray[dtype_t, ndim=3] mQ1, mQ2, mQ3, mQ4, cQn, mQn
     cdef np.ndarray[dtype_t, ndim=3] PQ
     cdef np.ndarray[dtype_t, ndim=4] MQ
     cdef np.ndarray[dtype_t, ndim=3] C_Q
@@ -256,6 +256,7 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
     mQ2 = np.zeros((M, numflux, numsol), dtype=np.float64)
     mQ3 = np.zeros((M, numflux, numsol), dtype=np.float64)
     mQ4 = np.zeros((M, numflux, numsol), dtype=np.float64)
+    cQn = np.zeros((M, numflux, numsol), dtype=np.float64)
     mQn = np.zeros((M, numflux, numsol), dtype=np.float64)
     mSp = np.zeros((M, numsol), dtype=np.float64)
     mSn = np.zeros((M, numsol), dtype=np.float64)
@@ -299,74 +300,72 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
             if numsol>0:
                 mSn, mSp = mSp, mSn
                 mSp = np.roll(mSp,1)
-                mSp[0,:] = h * J[i] * C_J[i,:]
+                mSp[0,:] = 0.
             #_verbose('# K1')
-            #_verbose('#   - water')
             for q in range(numflux):
                 PQ1[:,q] = rSAS_fun[q].cdf_i(STp, i)
-            #_verbose('#   - solutes')
-            dPQt[1:,:] = np.diff(PQ1[1:M+1,:], axis=0)
+            dPQt[1:,:] = np.diff(PQ1[0:M,:], axis=0)
             dPQt[0,:] = PQ1[0,:]
             for q in range(numflux):
                 for s in range(numsol):
-                    mQ1[:,q,s] = np.where(dSTt>0, mSp[:,s] * Q[i,q] * (dPQt[:,q]/dSTt) * alpha[i,q,s], 0.)
+                    mQ1[:,q,s] = np.where(dSTt>0, mSp[:,s] * alpha[i,q,s] * Q[i,q] * dPQt[:,q] / dSTt, 0.)
+            STt[:] = STp + (J[i] - np.dot(Q[i,:], PQ1.T)) * h/2
+            for s in range(numsol):
+                mSt[:,s] = mSp[:,s] - np.sum(mQ1[:,:,s], axis=1) * h/2
+                mSt[0,s] += J[i] * C_J[i,s] * h/2
             #_verbose('# K2')
-            #_verbose('#   - water')
-            STt[:] = STp + (J[i] - np.dot(Q[i,:],PQ1.T)) * h/2
             for q in range(numflux):
                 PQ2[:,q] = rSAS_fun[q].cdf_i(STt, i)
-            #_verbose('#   - solutes')
-            if numsol>0:
-                mSt[:,:] = mSp[:,:] - np.sum(mQ1[:,:,:], axis=1) * h/2
-            dSTt[1:] = np.diff(STt[1:M+1], axis=0)
+            dSTt[1:] = np.diff(STt[0:M], axis=0)
             dSTt[0] = STt[0]
-            dPQt[1:,:] = np.diff(PQ2[1:M+1,:], axis=0)
+            dPQt[1:,:] = np.diff(PQ2[0:M,:], axis=0)
             dPQt[0,:] = PQ2[0,:]
             for q in range(numflux):
                 for s in range(numsol):
-                    mQ2[:,q,s] = np.where(dSTt>0, mSt[:,s] * Q[i,q] * (dPQt[:,q]/dSTt) * alpha[i,q,s], 0.)
-            #_verbose('# K3')
-            #_verbose('#   - water')
+                    mQ2[:,q,s] = np.where(dSTt>0, mSt[:,s] * alpha[i,q,s] * Q[i,q] * dPQt[:,q] / dSTt, 0.)
             STt[:] = STp + (J[i] - np.dot(Q[i,:],PQ2.T)) * h/2
+            for s in range(numsol):
+                mSt[:,s] = mSp[:,s] - np.sum(mQ2[:,:,s], axis=1) * h/2
+                mSt[0,s] += J[i] * C_J[i,s] * h/2
+            #_verbose('# K3')
             for q in range(numflux):
                 PQ3[:,q] = rSAS_fun[q].cdf_i(STt, i)
-            #_verbose('#   - solutes')
-            if numsol>0:
-                mSt[:,:] = mSp[:,:] - np.sum(mQ2[:,:,:], axis=1) * h/2
-            dSTt[1:] = np.diff(STt[1:M+1], axis=0)
+            dSTt[1:] = np.diff(STt[0:M], axis=0)
             dSTt[0] = STt[0]
-            dPQt[1:,:] = np.diff(PQ3[1:M+1,:], axis=0)
-            dPQt[0,:] = PQ3[0,:]
+            dPQt[1:,:] = np.diff(PQ3[0:M,:], axis=0)
+            dPQt[0,:] = PQ2[0,:]
             for q in range(numflux):
                 for s in range(numsol):
-                    mQ3[:,q,s] = np.where(dSTt>0, mSt[:,s] * Q[i,q] * (dPQt[:,q]/dSTt) * alpha[i,q,s], 0.)
-            #_verbose('# K4')
-            #_verbose('#   - water')
+                    mQ3[:,q,s] = np.where(dSTt>0, mSt[:,s] * alpha[i,q,s] * Q[i,q] * dPQt[:,q] / dSTt, 0.)
             STt[:] = STp + (J[i] - np.dot(Q[i,:],PQ3.T)) * h
+            for s in range(numsol):
+                mSt[:,s] = mSp[:,s] - np.sum(mQ3[:,:,s], axis=1) * h
+                mSt[0,s] += J[i] * C_J[i,s] * h
+            #_verbose('# K4')
             for q in range(numflux):
                 PQ4[:,q] = rSAS_fun[q].cdf_i(STt, i)
-            #_verbose('#   - solutes')
-            if numsol>0:
-                mSt[:,:] = mSp[:,:] - np.sum(mQ3[:,:,:], axis=1) * h
-            dSTt[1:] = np.diff(STt[1:M+1], axis=0)
+            dSTt[1:] = np.diff(STt[0:M], axis=0)
             dSTt[0] = STt[0]
-            dPQt[1:,:] = np.diff(PQ4[1:M+1,:], axis=0)
-            dPQt[0,:] = PQ4[0,:]
+            dPQt[1:,:] = np.diff(PQ4[0:M,:], axis=0)
+            dPQt[0,:] = PQ2[0,:]
             for q in range(numflux):
                 for s in range(numsol):
-                    mQ4[:,q,s] = np.where(dSTt>0, mSt[:,s] * Q[i,q] * (dPQt[:,q]/dSTt) * alpha[i,q,s], 0.)
+                    mQ4[:,q,s] = np.where(dSTt>0, mSt[:,s] * alpha[i,q,s] * Q[i,q] * dPQt[:,q] / dSTt, 0.)
             #_verbose(' Step')
             PQn[1:M+1] = (PQ1 + 2*PQ2 + 2*PQ3 + PQ4)[:M] / 6.
             STn[1:M+1] = STp[0:M] + h * (J[i] - np.dot(Q[i,:], PQn[1:M+1,:].T))
             dSTt = np.diff(STn, axis=0)
             dPQt = np.diff(PQn, axis=0)
             mQn = (mQ1 + 2*mQ2 + 2*mQ3 + mQ4) / 6.
-            mSn = mSp - np.sum(mQn, axis=1) * h
             for s in range(numsol):
-                C_Q[i,:,s] += np.sum(np.where(Q[i]*dPQt>0, mQn[:,:,s] / (Q[i]*dPQt), 0), axis=0) / n_substeps
-        for s in range(numsol):
-            C_Q[i,:,s] += alpha[i,:,s] * C_old[s] * (1 - PQn[i+1,:])
-        #_verbose('# Store the result, if needed')
+                mSn[:,s] = mSp[:,s]
+                mSn[0,s]+= J[i] * C_J[i,s] * h
+                for q in range(numflux):
+                    cQn[:,q,s] = np.where(Q[i,q] * dPQt[:,q]>0, mQn[:,q,s] / (Q[i,q] * dPQt[:,q]), 0.)
+                    mSn[:,s] += - mQn[:,q,s] * h
+                    C_Q[i,q,s] += np.sum(cQn[:,q,s] * dPQt[:,q], axis=0) / n_substeps
+            mSn[:] = np.maximum(0., mSn)
+        _verbose('# Store the result, if needed')
         if full_outputs:
                 ST[:max_age+1, i+1] = STn[:M+1:n_substeps]
                 PQ[:max_age+1, i+1, :] = PQn[:M+1:n_substeps, :]

@@ -20,7 +20,7 @@ np.random.seed(0)
 # Generate the input timeseries
 # =====================================
 # length of the dataset
-N = 10
+N = 5
 S_0 = 1. # <-- volume of the uniformly sampled store
 Q_0 = 1. # <-- steady-state flow rate
 T_0 = S_0 / Q_0
@@ -57,7 +57,7 @@ ST_init = np.zeros(N + 1)
 # =============
 # Run it
 outputs = rsas.solve(J, Q, [rSAS_fun_Q1], ST_init=ST_init,
-                     mode='RK4', dt = 1., n_substeps=1, C_J=C_J, C_old=[C_old])
+                     mode='RK4', dt = 1., n_substeps=10, C_J=C_J, C_old=[C_old])
 # Let's pull these out to make the outputs from rsas crystal clear
 PQ1 = outputs['PQ'][:,:,0]
 C_outi_m = outputs['C_Q'][:,0,0]
