@@ -29,16 +29,24 @@ import time
 #import rsas._util
 
 # for debugging
-debug = True
-def _verbose(statement):
-    """Prints debuging messages if rsas.debug==True
+DEBUG = False
+VERBOSE = False
+def _debug(statement):
+    """Prints debuging messages if DEBUG==True
 
     """
-    if debug:
+    if DEBUG:
+        print statement,
+
+def _verbose(statement):
+    """Prints debuging messages if VERBOSE==True
+
+    """
+    if VERBOSE:
         print statement
 
 def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1,
-          full_outputs=True, MS_init = None, C_J=None, alpha=None, krate=None,  C_old=None):
+          full_outputs=True, MS_init = None, C_J=None, alpha=None, krate=None,  C_old=None, verbose=False, debug=False):
     """Solve the rSAS model for given fluxes
 
     Args:
@@ -135,6 +143,10 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1,
     """
     # This function just does input checking
     # then calls the private implementation functions defined below
+    global VERBOSE
+    global DEBUG
+    VERBOSE=verbose
+    DEBUG=debug
     if type(J) is not np.ndarray or J.ndim!=1:
         raise TypeError('J must be a 1-D numpy array')
     if (type(Q) is not np.ndarray) or (Q.ndim>2) or (Q.shape[0]!=len(J)):
@@ -154,24 +166,25 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1,
             raise TypeError('Each rSAS function must have methods rSAS_fun.cdf_all and rSAS_fun.cdf_i')
     if type(full_outputs) is not bool:
         raise TypeError('full_outputs must be a boolean (True/False)')
-    if C_J is not None and ((type(C_J) is not np.ndarray) or (C_J.ndim>2) or (C_J.shape[0]!=len(J))):
-        raise TypeError('C_J must be a 1 or 2-D numpy array with a first dimension the same length as J')
-    elif C_J.ndim==1:
-            C_J=np.c_[C_J]
-    if alpha is not None:
-        if type(alpha) is not np.ndarray:
-            alpha = np.array(alpha)
-        if alpha.ndim==2:
-            alpha = np.tile(alpha,(len(J),1,1))
-        if (alpha.shape[2]!=C_J.shape[1]) and (alpha.shape[1]!=Q.shape[1]):
-            raise TypeError("alpha array dimensions don't match other inputs")
-    else:
-        alpha = np.ones((len(J), Q.shape[1], C_J.shape[1]))
-    if C_old is not None:
-        if type(C_old) is not np.ndarray:
-            C_old = np.array(C_old)
-        if len(C_old)!=C_J.shape[1]:
-            raise TypeError('C_old must have the same number of entries as C_J has columns')
+    if C_J is not None:
+        if ((type(C_J) is not np.ndarray) or (C_J.ndim>2) or (C_J.shape[0]!=len(J))):
+            raise TypeError('C_J must be a 1 or 2-D numpy array with a first dimension the same length as J')
+        elif C_J.ndim==1:
+                C_J=np.c_[C_J]
+        if alpha is not None:
+            if type(alpha) is not np.ndarray:
+                alpha = np.array(alpha)
+            if alpha.ndim==2:
+                alpha = np.tile(alpha,(len(J),1,1))
+            if (alpha.shape[2]!=C_J.shape[1]) and (alpha.shape[1]!=Q.shape[1]):
+                raise TypeError("alpha array dimensions don't match other inputs")
+        else:
+            alpha = np.ones((len(J), Q.shape[1], C_J.shape[1]))
+        if C_old is not None:
+            if type(C_old) is not np.ndarray:
+                C_old = np.array(C_old)
+            if len(C_old)!=C_J.shape[1]:
+                raise TypeError('C_old must have the same number of entries as C_J has columns')
     if dt is not None:
         dt = np.float64(dt)
     if n_substeps is not None:
@@ -179,7 +192,7 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1,
     if full_outputs==False and C_J is None:
         warn('No output will be generated! Are you sure you mean to do this?')
     # Run implemented solvers
-    _verbose('Running')
+    _verbose('Running rsas...')
     if mode=='age':
         warn('mode age is deprecated, switching to RK4')
         mode='RK4'
@@ -219,9 +232,9 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
     cdef int k, i, j, n, timeseries_length, num_inputs, max_age
     cdef int numflux
     cdef np.float64_t start_time, h
-    cdef np.ndarray[dtype_t, ndim=1] STp, STn, STt, dSTt
+    cdef np.ndarray[dtype_t, ndim=1] STp, STn, STt, sTt, sTn
     cdef np.ndarray[dtype_t, ndim=2] mSp, mSn, mSt
-    cdef np.ndarray[dtype_t, ndim=2] PQ1, PQ2, PQ3, PQ4, PQn, dPQt
+    cdef np.ndarray[dtype_t, ndim=2] PQ1, PQ2, PQ3, PQ4, PQn, pQn, pQt
     cdef np.ndarray[dtype_t, ndim=2] ST, WaterBalance
     cdef np.ndarray[dtype_t, ndim=3] MS, SoluteBalance
     cdef np.ndarray[dtype_t, ndim=3] mQ1, mQ2, mQ3, mQ4, cQn, mQn
@@ -237,10 +250,8 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
     _verbose('...initializing arrays...')
     if C_J is not None:
         numsol = C_J.shape[1]
-        C_Q = np.zeros((timeseries_length, numflux, numsol), dtype=np.float64)
     else:
         numsol = 0
-        C_Q = None
     # Create arrays to hold intermediate solutions
     STn = np.zeros(M+1, dtype=np.float64)
     STp = np.zeros(M+1, dtype=np.float64)
@@ -250,17 +261,21 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
     PQ3 = np.zeros((M+1, numflux), dtype=np.float64)
     PQ4 = np.zeros((M+1, numflux), dtype=np.float64)
     PQn = np.zeros((M+1, numflux), dtype=np.float64)
-    dSTt = np.zeros((M), dtype=np.float64)
-    dPQt = np.zeros((M, numflux), dtype=np.float64)
-    mQ1 = np.zeros((M, numflux, numsol), dtype=np.float64)
-    mQ2 = np.zeros((M, numflux, numsol), dtype=np.float64)
-    mQ3 = np.zeros((M, numflux, numsol), dtype=np.float64)
-    mQ4 = np.zeros((M, numflux, numsol), dtype=np.float64)
-    cQn = np.zeros((M, numflux, numsol), dtype=np.float64)
-    mQn = np.zeros((M, numflux, numsol), dtype=np.float64)
-    mSp = np.zeros((M, numsol), dtype=np.float64)
-    mSn = np.zeros((M, numsol), dtype=np.float64)
-    mSt = np.zeros((M, numsol), dtype=np.float64)
+    sTt = np.zeros((M), dtype=np.float64)
+    sTn = np.zeros((M), dtype=np.float64)
+    pQt = np.zeros((M, numflux), dtype=np.float64)
+    pQn = np.zeros((M, numflux), dtype=np.float64)
+    if numsol>0:
+        mQ1 = np.zeros((M, numflux, numsol), dtype=np.float64)
+        mQ2 = np.zeros((M, numflux, numsol), dtype=np.float64)
+        mQ3 = np.zeros((M, numflux, numsol), dtype=np.float64)
+        mQ4 = np.zeros((M, numflux, numsol), dtype=np.float64)
+        cQn = np.zeros((M, numflux, numsol), dtype=np.float64)
+        mQn = np.zeros((M, numflux, numsol), dtype=np.float64)
+        mSp = np.zeros((M, numsol), dtype=np.float64)
+        mSn = np.zeros((M, numsol), dtype=np.float64)
+        mSt = np.zeros((M, numsol), dtype=np.float64)
+        C_Q = np.zeros((timeseries_length, numflux, numsol), dtype=np.float64)
     # Create arrays to hold the state variables if they are to be outputted
     if full_outputs:
         ST = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
@@ -271,16 +286,17 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
             MQ = np.zeros((max_age + 1, timeseries_length + 1, numflux, numsol), dtype=np.float64)
             SoluteBalance = np.zeros((max_age, timeseries_length, numsol), dtype=np.float64)
         else:
-            MS, MQ, SoluteBalance = None
+            MS, MQ, SoluteBalance = np.zeros((0,0,0)), np.zeros((0,0,0,0)), np.zeros((0,0,0))
     else:
-        ST, WaterBalance, PQ, MS, MQ, SoluteBalance = None, None, None, None, None, None
-    _verbose('done')
+        MS, MQ, SoluteBalance = np.zeros((0,0,0)), np.zeros((0,0,0,0)), np.zeros((0,0,0))
+        ST, PQ, WaterBalance = np.zeros((0,0)), np.zeros((0,0)), np.zeros((0,0))
+    _verbose('...setting initial conditions...')
     # Now we solve the governing equation
     # Set up initial and boundary conditions
     if ST_init is not None:
         STn[1:] = np.cumsum(np.diff(ST_init).repeat(n_substeps, axis=0))/n_substeps
         PQn[:] = np.c_[[rSAS_fun[q].cdf_i(STn, 0) for q in range(numflux)]].T
-    dSTt[:] = np.diff(STn)
+    sTn[:] = np.diff(STn)
     if MS_init is not None:
         mSn[:] = np.diff(MS_init, axis=0).repeat(n_substeps, axis=0)/n_substeps
     if full_outputs:
@@ -289,96 +305,118 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
         if numsol>0:
             MS[:,0,:] = np.r_[np.zeros((1, numsol)), np.cumsum(mSn, axis=0)][0:M+1:n_substeps]
     start_time = time.clock()
-    _verbose('...solving...')
+    _verbose('...solving conservation law...')
     # Primary solution loop over time t
     for i in range(timeseries_length):
     # Loop over substeps
         for k in range(n_substeps):
+            _debug('(i,k) = {},{}, '.format(i,k))
             STn, STp = STp, STn
-            dSTt = np.roll(dSTt,1)
-            dSTt[0] = h * J[i]
+            sTt = np.roll(sTn,1)
+            sTt[0] = h * J[i]
             if numsol>0:
                 mSn, mSp = mSp, mSn
                 mSp = np.roll(mSp,1)
                 mSp[0,:] = 0.
-            #_verbose('# K1')
+            _debug('K1, ')
             for q in range(numflux):
                 PQ1[:,q] = rSAS_fun[q].cdf_i(STp, i)
-            dPQt[1:,:] = np.diff(PQ1[0:M,:], axis=0)
-            dPQt[0,:] = PQ1[0,:]
+            pQt[1:,:] = np.diff(PQ1[0:M,:], axis=0)
+            pQt[0,:] = PQ1[0,:]
             for q in range(numflux):
                 for s in range(numsol):
-                    mQ1[:,q,s] = np.where(dSTt>0, mSp[:,s] * alpha[i,q,s] * Q[i,q] * dPQt[:,q] / dSTt, 0.)
+                    mQ1[:,q,s] = np.where(sTt>0, mSp[:,s] * alpha[i,q,s] * Q[i,q] * pQt[:,q] / sTt, 0.)
             STt[:] = STp + (J[i] - np.dot(Q[i,:], PQ1.T)) * h/2
             for s in range(numsol):
                 mSt[:,s] = mSp[:,s] - np.sum(mQ1[:,:,s], axis=1) * h/2
                 mSt[0,s] += J[i] * C_J[i,s] * h/2
-            #_verbose('# K2')
+            _debug('K2, ')
             for q in range(numflux):
                 PQ2[:,q] = rSAS_fun[q].cdf_i(STt, i)
-            dSTt[1:] = np.diff(STt[0:M], axis=0)
-            dSTt[0] = STt[0]
-            dPQt[1:,:] = np.diff(PQ2[0:M,:], axis=0)
-            dPQt[0,:] = PQ2[0,:]
+            sTt[1:] = np.diff(STt[0:M], axis=0)
+            sTt[0] = STt[0]
+            pQt[1:,:] = np.diff(PQ2[0:M,:], axis=0)
+            pQt[0,:] = PQ2[0,:]
             for q in range(numflux):
                 for s in range(numsol):
-                    mQ2[:,q,s] = np.where(dSTt>0, mSt[:,s] * alpha[i,q,s] * Q[i,q] * dPQt[:,q] / dSTt, 0.)
+                    mQ2[:,q,s] = np.where(sTt>0, mSt[:,s] * alpha[i,q,s] * Q[i,q] * pQt[:,q] / sTt, 0.)
             STt[:] = STp + (J[i] - np.dot(Q[i,:],PQ2.T)) * h/2
             for s in range(numsol):
                 mSt[:,s] = mSp[:,s] - np.sum(mQ2[:,:,s], axis=1) * h/2
                 mSt[0,s] += J[i] * C_J[i,s] * h/2
-            #_verbose('# K3')
+            _debug('K3, ')
             for q in range(numflux):
                 PQ3[:,q] = rSAS_fun[q].cdf_i(STt, i)
-            dSTt[1:] = np.diff(STt[0:M], axis=0)
-            dSTt[0] = STt[0]
-            dPQt[1:,:] = np.diff(PQ3[0:M,:], axis=0)
-            dPQt[0,:] = PQ2[0,:]
+            sTt[1:] = np.diff(STt[0:M], axis=0)
+            sTt[0] = STt[0]
+            pQt[1:,:] = np.diff(PQ3[0:M,:], axis=0)
+            pQt[0,:] = PQ2[0,:]
             for q in range(numflux):
                 for s in range(numsol):
-                    mQ3[:,q,s] = np.where(dSTt>0, mSt[:,s] * alpha[i,q,s] * Q[i,q] * dPQt[:,q] / dSTt, 0.)
+                    mQ3[:,q,s] = np.where(sTt>0, mSt[:,s] * alpha[i,q,s] * Q[i,q] * pQt[:,q] / sTt, 0.)
             STt[:] = STp + (J[i] - np.dot(Q[i,:],PQ3.T)) * h
             for s in range(numsol):
                 mSt[:,s] = mSp[:,s] - np.sum(mQ3[:,:,s], axis=1) * h
                 mSt[0,s] += J[i] * C_J[i,s] * h
-            #_verbose('# K4')
+            _debug('K4, ')
             for q in range(numflux):
                 PQ4[:,q] = rSAS_fun[q].cdf_i(STt, i)
-            dSTt[1:] = np.diff(STt[0:M], axis=0)
-            dSTt[0] = STt[0]
-            dPQt[1:,:] = np.diff(PQ4[0:M,:], axis=0)
-            dPQt[0,:] = PQ2[0,:]
+            sTt[1:] = np.diff(STt[0:M], axis=0)
+            sTt[0] = STt[0]
+            pQt[1:,:] = np.diff(PQ4[0:M,:], axis=0)
+            pQt[0,:] = PQ2[0,:]
             for q in range(numflux):
                 for s in range(numsol):
-                    mQ4[:,q,s] = np.where(dSTt>0, mSt[:,s] * alpha[i,q,s] * Q[i,q] * dPQt[:,q] / dSTt, 0.)
-            #_verbose(' Step')
+                    mQ4[:,q,s] = np.where(sTt>0, mSt[:,s] * alpha[i,q,s] * Q[i,q] * pQt[:,q] / sTt, 0.)
+            _debug('Finalizing\n')
             PQn[1:M+1] = (PQ1 + 2*PQ2 + 2*PQ3 + PQ4)[:M] / 6.
             STn[1:M+1] = STp[0:M] + h * (J[i] - np.dot(Q[i,:], PQn[1:M+1,:].T))
-            dSTt = np.diff(STn, axis=0)
-            dPQt = np.diff(PQn, axis=0)
-            mQn = (mQ1 + 2*mQ2 + 2*mQ3 + mQ4) / 6.
+            sTn = np.diff(STn, axis=0)
+            pQn = np.diff(PQn, axis=0)
+            if numsol>0:
+                mQn = (mQ1 + 2*mQ2 + 2*mQ3 + mQ4) / 6.
             for s in range(numsol):
                 mSn[:,s] = mSp[:,s]
                 mSn[0,s]+= J[i] * C_J[i,s] * h
                 for q in range(numflux):
-                    cQn[:,q,s] = np.where(Q[i,q] * dPQt[:,q]>0, mQn[:,q,s] / (Q[i,q] * dPQt[:,q]), 0.)
                     mSn[:,s] += - mQn[:,q,s] * h
-                    C_Q[i,q,s] += np.sum(cQn[:,q,s] * dPQt[:,q], axis=0) / n_substeps
-            mSn[:] = np.maximum(0., mSn)
-        _verbose('# Store the result, if needed')
-        if full_outputs:
-                ST[:max_age+1, i+1] = STn[:M+1:n_substeps]
-                PQ[:max_age+1, i+1, :] = PQn[:M+1:n_substeps, :]
-                WaterBalance[1:max_age, i] = np.diff(ST[0:max_age, i])-np.diff(ST[1:max_age+1, i+1]) - dt * np.dot(Q[i,:], np.diff(PQ[1:,i,:],axis=0).T)
-                WaterBalance[0, i] = J[i] * dt - ST[0, i+1] - dt * np.dot(Q[i,:], PQ[1,i,:] - PQ[0,i,:])
-                if numsol>0:
-                    MS[:max_age+1, i+1, :] = np.r_[np.zeros((1,numsol)), np.cumsum(mSn, axis=0)][:M+1:n_substeps]
-                    MQ[:max_age+1, i+1, :, :] = np.r_[np.zeros((1, numflux, numsol)), np.cumsum(mQn, axis=0)][:M+1:n_substeps, :, :]
+                    if Q[i,q]>0:
+                        cQn[:,q,s] = np.where(pQn[:,q]>0, mQn[:,q,s] / (Q[i,q] * pQn[:,q]), 0.)
+                        C_Q[i,q,s] += np.sum(cQn[:,q,s] * pQn[:,q], axis=0) / n_substeps
+            if numsol>0:
+                mSn[:] = np.maximum(0., mSn)
+            if full_outputs:
+                for q in range(numflux):
+                    PQ[1, i+1, q] += np.sum(pQn[:k+1, q])/n_substeps
+                    PQ[2:max_age+1, i+1, q] += np.sum(np.reshape(pQn[k+1:M-(n_substeps-k-1), q],(max_age-1,n_substeps)), axis=1)/n_substeps
                     for s in range(numsol):
-                        SoluteBalance[1:max_age,i,s] = (np.diff(MS[0:max_age,i,s], axis=0) - np.diff(MS[1:max_age+1,i+1,s], axis=0)
-                                                        - dt * np.sum(np.diff(MQ[1:,i,:,s], axis=0), axis=1))
-                        SoluteBalance[0,i,s] = C_J[i,s] * J[i] * dt - MS[0,i+1,s] - dt * np.sum(MQ[1,i+1,:,s] - MQ[0,i+1,:,s])
+                        MQ[1, i+1, q, s] += np.sum(mQn[:k+1, q, s], axis=0)/n_substeps
+                        MQ[2:max_age+1, i+1, q, s] += np.sum(np.reshape(mQn[k+1:M-(n_substeps-k-1), q, s],(max_age-1,n_substeps)), axis=1)/n_substeps
+        if full_outputs:
+            _debug(' Storing the result')
+            _debug('  Water')
+            ST[:max_age+1, i+1] = STn[:M+1:n_substeps]
+            PQ[:,i+1,:] = np.cumsum(PQ[:,i+1,:], axis=0)
+            _debug('  WaterBalance')
+            WaterBalance[1:max_age, i] = np.diff(ST[0:max_age, i])-np.diff(ST[1:max_age+1, i+1]) - dt * np.dot(Q[i,:], np.diff(PQ[1:,i+1,:],axis=0).T)
+            WaterBalance[0, i] = J[i] * dt - ST[1, i+1] - dt * np.dot(Q[i,:], PQ[1,i+1,:] - PQ[0,i+1,:])
+            if numsol>0:
+                _debug('  Solutes')
+                MS[:max_age+1, i+1, :] = np.r_[np.zeros((1,numsol)), np.cumsum(mSn, axis=0)][:M+1:n_substeps]
+                MQ[:,i+1,:,:] = np.cumsum(MQ[:,i+1,:,:], axis=0)
+                C_Q[i,q,s] += C_old * (1 - PQ[max_age, i+1])
+                for s in range(numsol):
+                    _debug('  SolutesBalance')
+                    SoluteBalance[1:max_age,i,s] = (np.diff(MS[0:max_age,i,s], axis=0) - np.diff(MS[1:max_age+1,i+1,s], axis=0)
+                                                    - dt * np.sum(np.diff(MQ[1:,i+1,:,s], axis=0), axis=1))
+                    SoluteBalance[0,i,s] = C_J[i,s] * J[i] * dt - MS[1,i+1,s] - dt * np.sum(MQ[1,i+1,:,s] - MQ[0,i+1,:,s])
+            _debug('\n')
         if np.mod(i+1,1000)==0:
             _verbose('...done ' + str(i+1) + ' of ' + str(max_age) + ' in ' + str(time.clock() - start_time) + ' seconds')
+    _verbose(' Making result')
+    if numsol>0:
         result = {'ST':ST, 'PQ':PQ, 'WaterBalance':WaterBalance, 'MS':MS, 'MQ':MQ, 'C_Q':C_Q, 'SoluteBalance':SoluteBalance}
+    else:
+        result = {'ST':ST, 'PQ':PQ, 'WaterBalance':WaterBalance}
+    _verbose(' done.')
     return result
