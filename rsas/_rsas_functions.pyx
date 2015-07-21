@@ -58,35 +58,20 @@ def create_function(rSAS_type, np.ndarray[dtype_t, ndim=2] params):
     These all take one parameter set (row) per timestep:
 
     'uniform' : Uniform distribution over the range [a, b].
-            * ``Q_params[:, 0]`` = a
-            * ``Q_params[:, 1]`` = b
-    'gamma': Gamma distribution
-            * ``Q_params[:, 0]`` = shift parameter
-            * ``Q_params[:, 1]`` = scale parameter
-            * ``Q_params[:, 2]`` = shape parameter
-    'gamma_trunc' : Gamma distribution, truncated at a maximum value
-            * ``Q_params[:, 0]`` = shift parameter
-            * ``Q_params[:, 1]`` = scale parameter
-            * ``Q_params[:, 2]`` = shape parameter
-            * ``Q_params[:, 3]`` = maximum value
-    'SS_invgauss' : Produces analytical solution to the advection-dispersion equation
-        (inverse Gaussian distribution) under steady-state flow.
-            * ``Q_params[:, 0]`` = scale parameter
-            * ``Q_params[:, 1]`` = Peclet number
-    'SS_mobileimmobile' : Produces analytical solution to the advection-dispersion equation with
-        linear mobile-immobile zone exchange under steady-state flow.
-            * ``Q_params[:, 0]`` = scale parameter
-            * ``Q_params[:, 1]`` = Peclet number
-            * ``Q_params[:, 2]`` = beta parameter
-    'from_steady_state_TTD' : rSAS function constructed to reproduce a given transit time distribution
-        at steady flow. Assumes timestep is dt=1.
-            * ``Q_params[0, 0]`` = Steady flow rate
-            * ``Q_params[1:, 0]`` = Steady-state transit time distribution, from T = dt.
+            * ``Q_params[:, 0]`` = ST_min
+            * ``Q_params[:, 1]`` = ST_max
+    'kumaraswami': Kumaraswami distribution
+            * ``Q_params[:, 0]`` = ST_min parameter
+            * ``Q_params[:, 1]`` = ST_max parameter
+            * ``Q_params[:, 2]`` = a parameter
+            * ``Q_params[:, 3]`` = b parameter
+    'gamma' : Gamma distribution, truncated at a maximum value (can be inf)
+            * ``Q_params[:, 0]`` = ST_min parameter
+            * ``Q_params[:, 1]`` = ST_max parameter (set as inf if undefined)
+            * ``Q_params[:, 2]`` = scale parameter
+            * ``Q_params[:, 3]`` = shape parameter
     """
     function_dict = {'gamma':_gamma_rSAS,
-                     'gamma_trunc':_gamma_trunc_rSAS,
-                     'SS_invgauss':_SS_invgauss_rSAS,
-                     'SS_mobileimmobile':_SS_mobileimmobile_rSAS,
                      'uniform':_uniform_rSAS,
                      'kumaraswami':_kumaraswami_rSAS}
                      #'from_steady_state_TTD':_from_steady_state_TTD_rSAS}
@@ -122,185 +107,44 @@ class rSASFunctionClass:
 class _kumaraswami_rSAS(rSASFunctionClass):
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
         params = params.copy()
-        self.a = params[:,0]
-        self.b = params[:,1]
-        self.S_min = params[:,2]
-        self.S_max = params[:,3]
+        self.ST_min = params[:,0]
+        self.ST_max = params[:,1]
+        self.a = params[:,2]
+        self.b = params[:,3]
     def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
-        return np.where(ST >= self.S_min, np.where(ST <= self.S_max,
-            1 - ( 1 - ((ST - self.S_min)/(self.S_max - self.S_min))**self.a)**self.b, 1.), 0.)
+        return np.where(ST > self.ST_min, np.where(ST < self.ST_max,
+            1 - ( 1 - ((ST - self.ST_min)/(self.ST_max - self.ST_min))**self.a)**self.b, 1.), 0.)
     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
-        return np.where(ST >= self.S_min[i], np.where(ST <= self.S_max[i],
-            1 - ( 1 - ((ST - self.S_min[i])/(self.S_max[i] - self.S_min[i]))**self.a[i])**self.b[i], 1.), 0.)
+        return np.where(ST > self.ST_min[i], np.where(ST < self.ST_max[i],
+            1 - ( 1 - ((ST - self.ST_min[i])/(self.ST_max[i] - self.ST_min[i]))**self.a[i])**self.b[i], 1.), 0.)
 
 class _uniform_rSAS(rSASFunctionClass):
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
         params = params.copy()
-        self.a = params[:,0]
-        self.b = params[:,1]
-        self.lam = 1.0/(self.b-self.a)
+        self.ST_min = params[:,0]
+        self.ST_max = params[:,1]
+        self.lam = 1.0/(self.ST_max-self.ST_min)
     def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
-        return np.where(ST < self.b, np.where(ST > self.a,  self.lam * (ST - self.a), 0.), 1.)
+        return np.where(ST < self.ST_max, np.where(ST > self.ST_min,  self.lam * (ST - self.ST_min), 0.), 1.)
     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
-        return np.where(ST < self.b[i], np.where(ST > self.a[i], self.lam[i] * (ST - self.a[i]), 0.), 1.)
+        return np.where(ST < self.ST_max[i], np.where(ST > self.ST_min[i], self.lam[i] * (ST - self.ST_min[i]), 0.), 1.)
 
 class _gamma_rSAS(rSASFunctionClass):
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
         params = params.copy()
-        self.shift = params[:,0]
-        self.scale = params[:,1]
-        self.a = params[:,2]
+        self.ST_min = params[:,0]
+        self.ST_max = params[:,1]
+        self.scale = params[:,2]
+        self.a = params[:,3]
         self.lam = 1.0/self.scale
         self.lam_on_gam = self.lam**self.a / gamma_function(self.a)
-    def pdf(self, np.ndarray[dtype_t, ndim=1] ST):
-        return np.where(ST-self.shift > 0, (self.lam_on_gam * (ST-self.shift)**(self.a-1) * np.exp(-self.lam*(ST-self.shift))), 0.)
+        self.rescale = np.where(np.isfinite(self.ST_max), 1/(gammainc(self.a, self.lam*(self.ST_max-self.ST_min))), 1.)
     def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
-        return np.where(ST-self.shift > 0, gammainc(self.a, self.lam*(ST-self.shift)), 0.)
+        return np.where(ST>self.ST_min, np.where(ST<self.ST_max,
+                gammainc(self.a, self.lam*(ST-self.ST_min))*self.rescale, 1.), 0.)
     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
-        return np.where(ST-self.shift[i] > 0, gammainc(self.a[i], self.lam[i]*(ST-self.shift[i])), 0.)
-
-class _gamma_trunc_rSAS(rSASFunctionClass):
-    def __init__(self, np.ndarray[dtype_t, ndim=2] params):
-        params = params.copy()
-        self.shift = params[:,0]
-        self.scale = params[:,1]
-        self.a = params[:,2]
-        self.max = params[:,3]
-        self.lam = 1.0/self.scale
-        self.lam_on_gam = self.lam**self.a / gamma_function(self.a)
-        self.rescale = 1/(gammainc(self.a, self.lam*(self.max-self.shift)))
-    def pdf(self, np.ndarray[dtype_t, ndim=1] ST):
-        return np.where(ST-self.shift > 0, (self.lam_on_gam * (np.minimum(ST, self.max)-self.shift)**(self.a-1) * np.exp(-self.lam*(np.minimum(ST, self.max)-self.shift)))*self.rescale, 0.)
-    def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
-        return np.where(ST-self.shift > 0, gammainc(self.a, self.lam*(np.minimum(ST, self.max)-self.shift))*self.rescale, 0.)
-    def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
-        return np.where(ST-self.shift[i] > 0, gammainc(self.a[i], self.lam[i]*(np.minimum(ST, self.max[i])-self.shift[i]))*self.rescale[i], 0.)
-
-class _SS_invgauss_rSAS(rSASFunctionClass):
-    def __init__(self, np.ndarray[dtype_t, ndim=2] params):
-        params = params.copy()
-        self.scale = params[:,0]
-        self.Pe = params[:,1]
-        self.lastx = np.zeros(len(params))
-        self.i = 0
-
-    def F1(self, dtype_t x, dtype_t Pe):
-        return erfc((1 - x) / np.sqrt(8 * x / Pe)) / 2.
-
-    def F2(self, dtype_t x, dtype_t Pe):
-        return erfc((1 + x) / np.sqrt(8 * x / Pe)) / 2. * np.exp(Pe / 2)
-
-    def STx(self, dtype_t x):
-        return (x + (1 - x) * self.F1(x, self.Pe[self.i]) - (1 + x) * self.F2(x, self.Pe[self.i]))
-
-    def Omegax(self, dtype_t x):
-        return self.F1(x, self.Pe[self.i]) + self.F2(x, self.Pe[self.i])
-
-    def get_x(self, dtype_t ST):
-        fun = lambda X: ST - self.STx(X)
-        jac = lambda X: - self.dSTdx(X)
-        x = fsolve(func=fun, fprime=jac, x0=[self.lastx[self.i]])
-        self.lastx[self.i] = x[0]
-        return x[0]
-
-    def Omega(self, dtype_t ST_norm):
-        x = self.get_x(ST_norm)
-        return self.Omegax(x)
-
-    def pdf(self, np.ndarray[dtype_t, ndim=1] ST):
-        _verbose('SS_invgauss_rSAS > pdf not implemented')
-        return None
-
-    def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
-        N = len(ST)
-        return_cdf = np.zeros(N)
-        for i in range(N):
-            return_cdf[i] = self.Omega(ST[i]/self.scale[i])
-        return return_cdf
-
-    def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
-        N = len(ST)
-        return_cdf = np.zeros(N)
-        for j in range(N):
-            if ST[j]==0.:
-                return_cdf[j] = 0.
-            else:
-                return_cdf[j] = self.Omega(ST[j]/self.scale[i])
-        return return_cdf
-
-class _SS_mobileimmobile_rSAS(rSASFunctionClass):
-    def __init__(self, np.ndarray[dtype_t, ndim=2] params):
-        params = params.copy()
-        self.S_Mob = params[:,0]
-        self.Pe = params[:,1]
-        self.beta = params[:,2]
-        self.rho = np.sqrt(1 - 8 / (self.Pe * self.beta))
-        self.lastx = np.zeros(len(params))
-        self.i = 0
-        self.S_init_scale = self.S_Mob
-
-    def F1(self, dtype_t x, dtype_t Pe):
-        return erfc((1 - x) / np.sqrt(8 * x / Pe)) / 2.
-
-    def F2(self, dtype_t x, dtype_t Pe):
-        return erfc((1 + x) / np.sqrt(8 * x / Pe)) / 2. * np.exp(Pe/2)
-
-    def Omegax(self, dtype_t x):
-        ADE_term = self.F1(x, self.Pe[self.i]) + self.F2(x, self.Pe[self.i])
-        Cross_term = self.F1(self.rho[self.i] * x, self.rho[self.i] * self.Pe[self.i]) + self.F2(self.rho[self.i] * x, self.rho[self.i] * self.Pe[self.i])
-        Decay_term = np.exp(self.Pe[self.i] * (1 - self.rho[self.i])/4 - x / self.beta[self.i])
-        return ADE_term - Cross_term * Decay_term
-
-    def Omega_IM_inv(self, dtype_t q):
-        return q * self.beta[self.i] * self.S_Mob[self.i]
-
-    def STx(self, dtype_t x):
-        q = self.Omegax(x)
-        ST_IM = self.Omega_IM_inv(q)
-        ST_ADE = self.S_Mob[self.i] * (x + (1 - x) * self.F1(x, self.Pe[self.i]) - (1 + x) * self.F2(x, self.Pe[self.i]))
-        return ST_ADE + ST_IM
-
-    def dSTdx(self, dtype_t x):
-        return self.S_Mob[self.i] * (1 - self.Omegax(x))
-
-    def get_x(self, dtype_t ST):
-        fun = lambda X: ST - self.STx(X)
-        jac = lambda X: np.array([- self.dSTdx(X)])
-        x = fsolve(func=fun, fprime=jac, x0=[0.0])#ST/self.S_init_scale[self.i]])
-        self.lastx[self.i] = x[0]
-        return x[0]
-
-    def Omega(self, dtype_t ST):
-        x = self.get_x(ST)
-        result = self.Omegax(x)
-        if result==1.0:
-            self.lastx[self.i] = 0.0
-            x = self.get_x(ST)
-            result = self.Omegax(x)
-        return result
-
-    def pdf(self, np.ndarray[dtype_t, ndim=1] ST):
-        _verbose('SS_invgauss_rSAS > pdf not implemented')
-        return None
-
-    def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
-        N = len(ST)
-        return_cdf = np.zeros(N)
-        for i in range(N):
-            self.i = i
-            return_cdf[i] = self.Omega(ST[i])
-        return return_cdf
-
-    def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
-        N = len(ST)
-        return_cdf = np.zeros(N)
-        self.i = i
-        for j in range(N):
-            if ST[j]==0.:
-                return_cdf[j] = 0.
-            else:
-                return_cdf[j] = self.Omega(ST[j])
-        return return_cdf
+        return np.where(ST>self.ST_min[i], np.where(ST<self.ST_max[i],
+                gammainc(self.a[i], self.lam[i]*(ST-self.ST_min[i]))*self.rescale[i], 1.), 0.)
 
 #class _from_steady_state_TTD_rSAS(rSASFunctionClass):
 #    def __init__(self, np.ndarray[dtype_t, ndim=2] params):

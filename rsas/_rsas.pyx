@@ -29,30 +29,24 @@ import time
 #import rsas._util
 
 # for debugging
-debug = True
-def _verbose(statement):
-    """Prints debuging messages if rsas.debug==True
+DEBUG = False
+VERBOSE = False
+def _debug(statement):
+    """Prints debuging messages if DEBUG==True
 
     """
-    if debug:
+    if DEBUG:
+        print statement,
+
+def _verbose(statement):
+    """Prints debuging messages if VERBOSE==True
+
+    """
+    if VERBOSE:
         print statement
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-def _map_substeps(fun, np.ndarray[dtype_t, ndim=1] X, n_substeps=1):
-    cdef int i
-    cdef np.ndarray[dtype_t, ndim=1] Y
-    N = len(X)
-    n = N/n_substeps
-    these = np.arange(n, dtype=np.int)*int(n_substeps)
-    Y = np.zeros(N, dtype=np.float64)
-    for i in range(n_substeps):
-        Y[these + i] = fun(X[these + i])
-    return Y
-
-
 def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1,
-          max_iter = 25, full_outputs=True, C_in=None, C_old=None, evapoconcentration=False):
+          full_outputs=True, MS_init = None, C_J=None, alpha=None, krate=None,  C_old=None, verbose=False, debug=False):
     """Solve the rSAS model for given fluxes
 
     Args:
@@ -105,20 +99,17 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1,
         full_outputs : bool (default True)
             Option to return the full state variables array ST the cumulative
             transit time distributions PQ1, PQ2, and other variables
-        C_in : n x 1 float64 ndarray (default None)
-            (mode='time' only)
+        MS_init : m x p float64 ndarray
+            Initial condition for the age-ranked solute mass. Must be the
+            same length as ST_init
+        C_J : n x p float64 ndarray (default None)
             Optional timeseries of inflow concentrations to convolved
             with the computed transit time distribution for the first flux in Q
-        C_old : float (default None)
-            (mode='time' only)
+        C_old : p x 1 float64 ndarray (default None)
             Optional concentration of the 'unobserved fraction' of Q (from inflows
-            prior to the start of the simulation) for correcting C_out. If ST_init is not given
+            prior to the start of the simulation) for correcting C_Q. If ST_init is not given
             or set to all zeros, the unobserved fraction will be assumed to lie on the
             diagonal of the PQ matrix. Otherwise it will be assumed to be the bottom row.
-        evapoconcentration : bool (default False)
-            If True, it will be assumed that species in C_in are not removed
-            by the second flux, and instead become increasingly concentrated in
-            storage.
 
 
 
@@ -141,8 +132,8 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1,
             'MassBalance' : numpy float64 2D array
                 Should always be within tolerances of zero, unless something is very
                 wrong. (full_outputs=True only)
-            'C_out' : list of numpy float64 1D array
-                If C_in is supplied, C_out is the timeseries of outflow concentration
+            'C_Q' : list of numpy float64 1D array
+                If C_J is supplied, C_Q is the timeseries of outflow concentration
                 in Q1. (mode='time' only)
 
     For each of the arrays in the full outputs each row represents an age, and each
@@ -152,22 +143,22 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1,
     """
     # This function just does input checking
     # then calls the private implementation functions defined below
+    global VERBOSE
+    global DEBUG
+    VERBOSE=verbose
+    DEBUG=debug
     if type(J) is not np.ndarray or J.ndim!=1:
         raise TypeError('J must be a 1-D numpy array')
-    if type(Q) is np.ndarray:
-        if Q.ndim==1:
-            Q=[Q]
-        else:
-            Q = [Q[:,i] for i in Q.shape[1]]
-    for Qi in Q:
-        if type(Qi) is not np.ndarray or Qi.ndim!=1 or len(Qi)!=len(J):
-            raise TypeError('Q must be a 2-D numpy array with a column for each outflow\nor a list of two 1-D numpy arrays (like ''[Q1, Q2]'')\nand each must be the same size as J')
+    if (type(Q) is not np.ndarray) or (Q.ndim>2) or (Q.shape[0]!=len(J)):
+        raise TypeError('Q must be a 1 or 2-D numpy array with a column for each outflow\nor a list of two 1-D numpy arrays (like ''[Q1, Q2]'')\nand each must be the same size as J')
+    elif Q.ndim==1:
+            Q=np.c_[Q]
     if ST_init is not None:
         if type(ST_init) is not np.ndarray or ST_init.ndim!=1:
             raise TypeError('ST_init must be a 1-D numpy array')
     if not type(rSAS_fun) is list:
         rSAS_fun = [rSAS_fun]
-    if len(Q)!=len(rSAS_fun):
+    if Q.shape[1]!=len(rSAS_fun):
         raise TypeError('Each rSAS function must have a corresponding outflow in Q. Numbers don''t match')
     for fun in rSAS_fun:
         fun_methods = [method for method in dir(fun) if callable(getattr(fun, method))]
@@ -175,702 +166,63 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1,
             raise TypeError('Each rSAS function must have methods rSAS_fun.cdf_all and rSAS_fun.cdf_i')
     if type(full_outputs) is not bool:
         raise TypeError('full_outputs must be a boolean (True/False)')
-    if type(evapoconcentration) is not bool:
-        raise TypeError('evapoconcentration must be a boolean (True/False)')
-    if C_in is not None and (type(C_in) is not np.ndarray or C_in.ndim!=1 or len(C_in)!=len(J)):
-        raise TypeError('C_in must be a 1-D numpy array the same length as J')
-    if C_old is not None:
-        C_old = np.float64(C_old)
+    if C_J is not None:
+        if ((type(C_J) is not np.ndarray) or (C_J.ndim>2) or (C_J.shape[0]!=len(J))):
+            raise TypeError('C_J must be a 1 or 2-D numpy array with a first dimension the same length as J')
+        elif C_J.ndim==1:
+                C_J=np.c_[C_J]
+        if alpha is not None:
+            if type(alpha) is not np.ndarray:
+                alpha = np.array(alpha)
+            if alpha.ndim==2:
+                alpha = np.tile(alpha,(len(J),1,1))
+            if (alpha.shape[2]!=C_J.shape[1]) and (alpha.shape[1]!=Q.shape[1]):
+                raise TypeError("alpha array dimensions don't match other inputs")
+        else:
+            alpha = np.ones((len(J), Q.shape[1], C_J.shape[1]))
+        if C_old is not None:
+            if type(C_old) is not np.ndarray:
+                C_old = np.array(C_old)
+            if len(C_old)!=C_J.shape[1]:
+                raise TypeError('C_old must have the same number of entries as C_J has columns')
     if dt is not None:
         dt = np.float64(dt)
     if n_substeps is not None:
         n_substeps = np.int(n_substeps)
-    if max_iter is not None:
-        max_iter = np.int(max_iter)
-    if full_outputs==False and C_in is None:
+    if full_outputs==False and C_J is None:
         warn('No output will be generated! Are you sure you mean to do this?')
     # Run implemented solvers
-    _verbose('Running')
+    _verbose('Running rsas...')
     if mode=='age':
-        # Wrap cdf_all in function to handle substepping
-        for i in range(len(rSAS_fun)):
-            fun = rSAS_fun[i].cdf_all
-            rSAS_fun[i].cdf_all = lambda X:_map_substeps(fun, X, n_substeps)
-        if len(Q)==1:
-            result = _solve_all_by_age_1out(J, Q[0], rSAS_fun[0],
-                                          ST_init=ST_init, dt=dt,
-                                          n_substeps=n_substeps, max_iter=max_iter, C_in=C_in, C_old=C_old)
-        elif len(Q)==2:
-            result = _solve_all_by_age_2out(J, Q[0], rSAS_fun[0], Q[1], rSAS_fun[1],
-                                          ST_init=ST_init, dt=dt,
-                                          n_substeps=n_substeps, max_iter=max_iter, C_in=C_in,
-                                          C_old=C_old, evapoconcentration=evapoconcentration)
-        else:
-            raise NotImplementedError('mode==''age'' only implemented for 1 or 2 outflows.')
-    elif mode=='time':
-        if len(Q)==1:
-            result = _solve_all_by_time_1out(J, Q[0], rSAS_fun[0],
-                                          ST_init=ST_init, dt=dt, n_substeps=n_substeps, max_iter=max_iter,
-                                          full_outputs=full_outputs, C_in=C_in, C_old=C_old)
-        elif len(Q)==2:
-            result = _solve_all_by_time_2out(J, Q[0], rSAS_fun[0], Q[1], rSAS_fun[1],
-                                          ST_init=ST_init, dt=dt, n_substeps=n_substeps, max_iter=max_iter,
-                                          full_outputs=full_outputs, C_in=C_in,
-                                          C_old=C_old, evapoconcentration=evapoconcentration)
-        else:
-            raise NotImplementedError('mode==''time'' only implemented for 1 or 2 outflows.')
-    elif mode=='RK4':
-        if len(Q)==1:
-            result = _solve_RK4(J, Q[0], rSAS_fun[0],
-                                          ST_init=ST_init, dt=dt, n_substeps=n_substeps, max_iter=max_iter,
-                                          full_outputs=full_outputs, C_in=C_in, C_old=C_old)
-        elif len(Q)==2:
-            result = _solve_RK4(J, Q[0], rSAS_fun[0], Q[1], rSAS_fun[1],
-                                          ST_init=ST_init, dt=dt, n_substeps=n_substeps, max_iter=max_iter,
-                                          full_outputs=full_outputs, C_in=C_in, C_old=C_old)
+        warn('mode age is deprecated, switching to RK4')
+        mode='RK4'
+    if mode=='time':
+        warn('mode time is deprecated, switching to RK4')
+        mode='RK4'
+    if mode=='RK4':
+        result = _solve_RK4(J, Q, rSAS_fun, ST_init=ST_init,
+                            dt=dt, n_substeps=n_substeps,
+                            full_outputs=full_outputs,
+                            MS_init=MS_init, C_J=C_J, alpha=alpha, krate=krate, C_old=C_old)
     else:
-        raise TypeError('Incorrect solution mode. Must be ''age'' or ''time''')
-    # handle the output
-    if full_outputs:
-        if C_in is None:
-            if len(Q)==1:
-                ST, PQ1, Q1out, theta1, thetaS, MassBalance = result
-                output = {'ST':ST, 'PQ':[PQ1], 'Qout':[Q1out], 'thetaQ':[theta1], 'thetaS':thetaS, 'MassBalance':MassBalance}
-            elif len(Q)==2:
-                ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance = result
-                output = {'ST':ST, 'PQ':[PQ1, PQ2], 'Qout':[Q1out, Q2out], 'thetaQ':[theta1, theta2], 'thetaS':thetaS, 'MassBalance':MassBalance}
-        else:
-            if len(Q)==1:
-                C_out, ST, PQ1, Q1out, theta1, thetaS, MassBalance = result
-                output = {'ST':ST, 'PQ':[PQ1], 'Qout':[Q1out], 'thetaQ':[theta1], 'thetaS':thetaS, 'MassBalance':MassBalance, 'C_out':[C_out]}
-            elif len(Q)==2:
-                C_out, ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance = result
-                output = {'ST':ST, 'PQ':[PQ1, PQ2], 'Qout':[Q1out, Q2out], 'thetaQ':[theta1, theta2], 'thetaS':thetaS, 'MassBalance':MassBalance, 'C_out':[C_out]}
-    else:
-        C_out = result
-        output = {'C_out':[C_out]}
-    return output
-
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-def _solve_all_by_age_2out(
-        np.ndarray[dtype_t, ndim=1] J,
-        np.ndarray[dtype_t, ndim=1] Q1,
-        rSAS_fun1,
-        np.ndarray[dtype_t, ndim=1] Q2,
-        rSAS_fun2,
-        np.ndarray[dtype_t, ndim=1] ST_init = None,
-        dtype_t dt = 1,
-        int n_substeps = 1,
-        int max_iter = 25,
-        float inc_tol = 1E-10,
-        full_outputs=True, C_in=None, C_old=None, evapoconcentration=False):
-    """Private function solving the rSAS model with 2 outflows, solved using the original age-based algorithm
-
-    See the docstring for rsas.solve for moreinformation
-    """
-    # Initialization
-    # Define some variables
-    cdef int k, i, timeseries_length, num_inputs, max_age, N
-    cdef np.float64_t start_time
-    cdef np.ndarray[dtype_t, ndim=2] ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance
-    cdef np.ndarray[dtype_t, ndim=1] STp, PQ1p, PQ2p, Q1outp, Q2outp
-    cdef np.ndarray[dtype_t, ndim=1] STu, PQ1u, PQ2u, dPQ1u, dPQ2u, dQ1outu, dQ2outu, dSTp, dPQ1p, dPQ2p
-    cdef np.ndarray[dtype_t, ndim=1] Q1r, Q2r, Jr
-    #cdef np.ndarray[dtype_t, ndim=2] Q1_paramsr, Q2_paramsr
-    # Handle inputs
-    if ST_init is None:
-        ST_init=np.zeros(len(J) + 1)
-    else:
-        # This must be true
-        ST_init[0] = 0
-    # Some lengths
-    timeseries_length = len(J)
-    max_age = len(ST_init) - 1
-    N = timeseries_length * n_substeps
-    # Expand the inputs to accomodate the substep solution points
-    Q1r = Q1.repeat(n_substeps)
-    Q2r = Q2.repeat(n_substeps)
-    Jr = J.repeat(n_substeps)
-    dt = dt / n_substeps
-    # Create arrays to hold the state variables
-    _verbose('...initializing arrays...')
-    ST = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-    PQ1 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-    PQ2 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-    Q1out = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-    Q2out = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-    theta1 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-    theta2 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-    thetaS = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-    MassBalance = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-    #Create arrays to hold intermediate solutions
-    STp = np.zeros(N+1, dtype=np.float64)
-    PQ1p = np.zeros(N+1, dtype=np.float64)
-    PQ2p = np.zeros(N+1, dtype=np.float64)
-    Q1outp = np.zeros(N+1, dtype=np.float64)
-    Q2outp = np.zeros(N+1, dtype=np.float64)
-    dSTp = np.zeros(N, dtype=np.float64)
-    dPQ1p = np.zeros(N, dtype=np.float64)
-    dPQ2p = np.zeros(N, dtype=np.float64)
-    dSTu = np.zeros(N, dtype=np.float64)
-    dPQ1u = np.zeros(N, dtype=np.float64)
-    dPQ2u = np.zeros(N, dtype=np.float64)
-    STu = np.zeros(N, dtype=np.float64)
-    STu_prev = np.zeros(N, dtype=np.float64)
-    PQ1u = np.zeros(N, dtype=np.float64)
-    PQ2u = np.zeros(N, dtype=np.float64)
-    dQ1outu = np.zeros(N, dtype=np.float64)
-    dQ2outu = np.zeros(N, dtype=np.float64)
-    _verbose('done')
-    # Now we solve the governing equation
-    # Set up initial and boundary conditions
-    dSTp[:] = Jr * dt
-    dPQ1p[:] = np.where(dSTp>0., rSAS_fun1.cdf_all(dSTp), 0.)
-    dPQ2p[:] = np.where(dSTp>0., rSAS_fun2.cdf_all(dSTp), 0.)
-    ST[:, 0] = ST_init[:]
-    PQ1_init = rSAS_fun1.cdf_i(ST_init, 0)
-    PQ2_init = rSAS_fun2.cdf_i(ST_init, 0)
-    PQ1[:, 0] = PQ1_init
-    PQ2[:, 0] = PQ2_init
-    start_time = time.clock()
-    _verbose('...solving...')
-    # Primary solution loop over ages T
-    for i in range(max_age):
-    # Loop over substeps
-        for k in range(n_substeps):
-            # dSTp is the increment of ST at the previous age and previous timestep.
-            # It is therefore our first estimate of the increment of ST at this
-            # age and timestep.
-            STu[:] = STp[1:] + dSTp
-            # Use this estimate to get an initial estimate of the
-            # cumulative transit time distributions, PQ1 and PQ2
-            PQ1u[:] = np.where(dSTp>0., rSAS_fun1.cdf_all(STu), PQ1p[1:])
-            PQ2u[:] = np.where(dSTp>0., rSAS_fun2.cdf_all(STu), PQ2p[1:])
-            # Iterate to refine the estimates
-            iteration = 0
-            max_increment = np.inf
-            STu_prev[:] = STu[:]
-            while (max_increment > inc_tol) & (iteration < max_iter):
-                STu, STu_prev = STu_prev, STu
-                # Increments of the cumulative transit time distribution
-                # approximate the values of the transit time PDF at this age
-                dPQ1u[:] = (PQ1u - PQ1p[1:])
-                dPQ2u[:] = (PQ2u - PQ2p[1:])
-                # Estimate the outflow over the interval of ages dt with an age
-                # T as the discharge over the timestep times the average of the
-                # PDF values at the start and the end of the timestep
-                dQ1outu[:] = Q1r * (dPQ1u + dPQ1p) / 2
-                dQ2outu[:] = Q2r * (dPQ2u + dPQ2p) / 2
-                # Update the estimate of dST, ST and the cumulative TTD to
-                # account for these outflows
-                dSTu[:] = np.maximum(dSTp - dt * dQ1outu - dt * dQ2outu, 0.)
-                STu[:] = STp[1:] + dSTu
-                PQ1u[:] = np.where(dSTp>0., rSAS_fun1.cdf_all(STu), PQ1p[1:])
-                PQ2u[:] = np.where(dSTp>0., rSAS_fun2.cdf_all(STu), PQ2p[1:])
-                iteration += 1
-                max_increment = np.max(np.abs(STu-STu_prev))
-            if iteration == max_iter:
-                _verbose('Warning: maximum number of iterations reached at agestep ' + str(i))
-            # Update the 'previous solution' record in preparation of the
-            # next solution timestep
-            STp[1:] = STu[:]
-            PQ1p[1:] = PQ1u[:]
-            PQ2p[1:] = PQ2u[:]
-            dSTp[1:]  = dSTu[:N-1]
-            dPQ1p[1:] = dPQ1u[:N-1]
-            dPQ2p[1:] = dPQ2u[:N-1]
-            # Incorporate the boundary condition
-            dSTp[0]  = (ST_init[i+1] - (ST_init[i])) / n_substeps
-            dPQ1p[0] = (PQ1_init[i+1] - (PQ1_init[i])) / n_substeps
-            dPQ2p[0] = (PQ2_init[i+1] - (PQ2_init[i])) / n_substeps
-            # Keep a running tally of the outflows by age
-            Q1outp[1:] = Q1outp[:N] + dQ1outu[:]
-            Q2outp[1:] = Q2outp[:N] + dQ2outu[:]
-            Q1out[i+1, 1:] += Q1outp[n_substeps::n_substeps]/n_substeps
-            Q2out[i+1, 1:] += Q2outp[n_substeps::n_substeps]/n_substeps
-            # If a full timestep is complete, store the result
-            if k==n_substeps-1:
-                ST[i+1, 1:] =   STp[n_substeps::n_substeps]
-                PQ1[i+1, 1:] = PQ1p[n_substeps::n_substeps]
-                PQ2[i+1, 1:] = PQ2p[n_substeps::n_substeps]
-                theta1[i+1, i+1:] = np.where(J[:timeseries_length-i]>0, Q1out[i+1, i+1:] / J[:timeseries_length-i], 0.)
-                theta2[i+1, i+1:] = np.where(J[:timeseries_length-i]>0, Q2out[i+1, i+1:] / J[:timeseries_length-i], 0.)
-                thetaS[i+1, i+1:] = np.where(J[:timeseries_length-i]>0, (ST[i+1, i+1:] - ST[i, i+1:]) / J[:timeseries_length-i], 0.)
-                MassBalance[i+1, i+1:] = (J[:timeseries_length-i]
-                                        - Q1out[i+1, i+1:] - Q2out[i+1, i+1:]
-                                        - (ST[i+1, i+1:] - ST[i, i+1:])/dt)
-        if np.mod(i+1,1000)==0:
-            _verbose('...done ' + str(i+1) + ' of ' + str(max_age) + ' in ' + str(time.clock() - start_time) + ' seconds')
-    # Evaluation of outflow concentration
-    # this is not currently supported for mode='age'
-    #if C_in is not None:
-    #    if evapoconcentration:
-    #        C_out, _, observed_fraction = rsas._util.transport_with_evapoconcentration(PQ1, theta1, thetaS, C_in, C_old)
-    #    else:
-    #        C_out, _, observed_fraction = rsas._util.transport(PQ1, C_in, C_old)
-    #    return C_out, ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance
-    #else:
-    #    return ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance
-        return ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance
-
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-def _solve_all_by_age_1out(
-        np.ndarray[dtype_t, ndim=1] J,
-        np.ndarray[dtype_t, ndim=1] Q1,
-        rSAS_fun1,
-        np.ndarray[dtype_t, ndim=1] ST_init = None,
-        dtype_t dt = 1,
-        int n_substeps = 1,
-        float inc_tol = 1E-10,
-        int max_iter = 25, C_in=None, C_old=None):
-    """Private function solving the rSAS model with 1 outflows, solved using the original age-based algorithm
-
-    See the docstring for rsas.solve for moreinformation
-    """
-    # Initialization
-    # Define some variables
-    cdef int k, i, timeseries_length, num_inputs, max_age, N
-    cdef np.float64_t start_time
-    cdef np.ndarray[dtype_t, ndim=2] ST, PQ1, Q1out, theta1, thetaS, MassBalance
-    cdef np.ndarray[dtype_t, ndim=1] STp, PQ1p, Q1outp
-    cdef np.ndarray[dtype_t, ndim=1] STu, PQ1u, dPQ1u, dQ1outu, dSTp, dPQ1p
-    cdef np.ndarray[dtype_t, ndim=1] Q1r, Jr
-    #cdef np.ndarray[dtype_t, ndim=2] Q1_paramsr, Q2_paramsr
-    # Handle inputs
-    if ST_init is None:
-        ST_init=np.zeros(len(J) + 1)
-    else:
-        # This must be true
-        ST_init[0] = 0
-    # Some lengths
-    timeseries_length = len(J)
-    max_age = len(ST_init) - 1
-    N = timeseries_length * n_substeps
-    # Expand the inputs to accomodate the substep solution points
-    Q1r = Q1.repeat(n_substeps)
-    Jr = J.repeat(n_substeps)
-    dt = dt / n_substeps
-    # Create arrays to hold the state variables
-    _verbose('...initializing arrays...')
-    ST = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-    PQ1 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-    Q1out = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-    theta1 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-    thetaS = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-    MassBalance = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-    #Create arrays to hold intermediate solutions
-    STp = np.zeros(N+1, dtype=np.float64)
-    PQ1p = np.zeros(N+1, dtype=np.float64)
-    Q1outp = np.zeros(N+1, dtype=np.float64)
-    dSTp = np.zeros(N, dtype=np.float64)
-    dPQ1p = np.zeros(N, dtype=np.float64)
-    dSTu = np.zeros(N, dtype=np.float64)
-    dPQ1u = np.zeros(N, dtype=np.float64)
-    STu = np.zeros(N, dtype=np.float64)
-    STu_prev = np.zeros(N, dtype=np.float64)
-    PQ1u = np.zeros(N, dtype=np.float64)
-    dQ1outu = np.zeros(N, dtype=np.float64)
-    _verbose('done')
-    # Now we solve the governing equation
-    # Set up initial and boundary conditions
-    dSTp[:] = Jr * dt
-    dPQ1p[:] = np.where(dSTp>0., rSAS_fun1.cdf_all(dSTp), 0.)
-    ST[:, 0] = ST_init[:]
-    PQ1_init = rSAS_fun1.cdf_i(ST_init, 0)
-    PQ1[:, 0] = PQ1_init
-    start_time = time.clock()
-    _verbose('...solving...')
-    # Primary solution loop over ages T
-    for i in range(max_age):
-    # Loop over substeps
-        for k in range(n_substeps):
-            # dSTp is the increment of ST at the previous age and previous timestep.
-            # It is therefore our first estimate of the increment of ST at this
-            # age and timestep.
-            STu[:] = STp[1:] + dSTp
-            # Use this estimate to get an initial estimate of the
-            # cumulative transit time distributions, PQ1 and PQ2
-            PQ1u[:] = np.where(dSTp>0., rSAS_fun1.cdf_all(STu), PQ1p[1:])
-            # Iterate to refine the estimates
-            iteration = 0
-            max_increment = np.inf
-            STu_prev[:] = STu[:]
-            while (max_increment > inc_tol) & (iteration < max_iter):
-                STu, STu_prev = STu_prev, STu
-                # Increments of the cumulative transit time distribution
-                # approximate the values of the transit time PDF at this age
-                dPQ1u[:] = (PQ1u - PQ1p[1:])
-                # Estimate the outflow over the interval of ages dt with an age
-                # T as the discharge over the timestep times the average of the
-                # PDF values at the start and the end of the timestep
-                dQ1outu[:] = Q1r * (dPQ1u + dPQ1p) / 2
-                # Update the estimate of dST, ST and the cumulative TTD to
-                # account for these outflows
-                dSTu[:] = np.maximum(dSTp - dt * dQ1outu, 0.)
-                STu[:] = STp[1:] + dSTu
-                PQ1u[:] = np.where(dSTp>0., rSAS_fun1.cdf_all(STu), PQ1p[1:])
-                iteration += 1
-                max_increment = np.max(np.abs(STu-STu_prev))
-            if iteration == max_iter:
-                _verbose('Warning: maximum number of iterations reached at agestep ' + str(i))
-            # Update the 'previous solution' record in preparation of the
-            # next solution timestep
-            STp[1:] = STu[:]
-            PQ1p[1:] = PQ1u[:]
-            dSTp[1:]  = dSTu[:N-1]
-            dPQ1p[1:] = dPQ1u[:N-1]
-            # Incorporate the boundary condition
-            dSTp[0]  = (ST_init[i+1] - (ST_init[i])) / n_substeps
-            dPQ1p[0] = (PQ1_init[i+1] - (PQ1_init[i])) / n_substeps
-            # Keep a running tally of the outflows by age
-            Q1outp[1:] = Q1outp[:N] + dQ1outu[:]
-            Q1out[i+1, 1:] += Q1outp[n_substeps::n_substeps]/n_substeps
-            # If a full timestep is complete, store the result
-            if k==n_substeps-1:
-                ST[i+1, 1:] =   STp[n_substeps::n_substeps]
-                PQ1[i+1, 1:] = PQ1p[n_substeps::n_substeps]
-                theta1[i+1, i+1:] = np.where(J[:timeseries_length-i]>0, Q1out[i+1, i+1:] / J[:timeseries_length-i], 0.)
-                thetaS[i+1, i+1:] = np.where(J[:timeseries_length-i]>0, (ST[i+1, i+1:] - ST[i, i+1:]) / J[:timeseries_length-i], 0.)
-                MassBalance[i+1, i+1:] = (J[:timeseries_length-i]
-                                        - Q1out[i+1, i+1:]
-                                        - (ST[i+1, i+1:] - ST[i, i+1:])/dt)
-        if np.mod(i+1,1000)==0:
-            _verbose('...done ' + str(i+1) + ' of ' + str(max_age) + ' in ' + str(time.clock() - start_time) + ' seconds')
-    # Evaluation of outflow concentration
-    # this is not currently supported for mode='age'
-    #if C_in is not None:
-    #    C_out, _, observed_fraction = rsas._util.transport(PQ1, C_in, C_old)
-    #    return C_out, ST, PQ1, Q1out, theta1, thetaS, MassBalance
-    #else:
-    #    return ST, PQ1, Q1out, theta1, thetaS, MassBalance
-        return ST, PQ1, Q1out, theta1, thetaS, MassBalance
-
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-def _solve_all_by_time_2out(np.ndarray[dtype_t, ndim=1] J,
-        np.ndarray[dtype_t, ndim=1] Q1,
-        rSAS_fun1,
-        np.ndarray[dtype_t, ndim=1] Q2,
-        rSAS_fun2,
-        np.ndarray[dtype_t, ndim=1] ST_init = None,
-        dtype_t dt = 1,
-        int max_iter = 25,
-        int n_substeps = 1,
-        float inc_tol = 1E-10,
-        full_outputs=True, C_in=None, C_old=None, evapoconcentration=False):
-    """rSAS model with 2 outfluxes, solved by looping over timesteps.
-
-    See the docstring for rsas.solve for more information
-    """
-    # Initialization
-    # Define some variables
-    cdef int k, i, timeseries_length, num_inputs, max_age
-    cdef np.float64_t start_time
-    cdef np.ndarray[dtype_t, ndim=2] ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance
-    cdef np.ndarray[dtype_t, ndim=1] STu, pQ1u, pQ2u, pQ1p, pQ2p, dQ1outu, dQ2outu, dSTu, dSTp, C_out, Q1out_total
-    # Handle inputs
-    if ST_init is None:
-        ST_init=np.zeros(len(J) + 1)
-    else:
-        # This must be true
-        ST_init[0] = 0
-    # Some lengths
-    timeseries_length = len(J)
-    max_age = len(ST_init) - 1
-    M = max_age * n_substeps
-    # Expand the inputs to accomodate the substep solution points
-    dt = dt / n_substeps
-    # Create arrays to hold intermediate solutions
-    _verbose('...initializing arrays...')
-    pQ1p = np.zeros(M, dtype=np.float64)
-    pQ2p = np.zeros(M, dtype=np.float64)
-    STu = np.zeros(M+1, dtype=np.float64)
-    STu_prev = np.zeros(M+1, dtype=np.float64)
-    dQ1outu = np.zeros(M, dtype=np.float64)
-    dQ2outu = np.zeros(M, dtype=np.float64)
-    pQ1u = np.zeros(M, dtype=np.float64)
-    pQ2u = np.zeros(M, dtype=np.float64)
-    dSTu = np.zeros(M, dtype=np.float64)
-    dSTp = np.zeros(M, dtype=np.float64)
-    if C_in is not None:
-        if evapoconcentration:
-            Q1out_total = np.zeros(M, dtype=np.float64)
-        C_out = np.zeros(timeseries_length, dtype=np.float64)
-        C_in_r = C_in.repeat(n_substeps)
-    # Create arrays to hold the state variables if they are to be outputted
-    if full_outputs:
-        ST = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        PQ1 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        PQ2 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        Q1out = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        Q2out = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        theta1 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        theta2 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        thetaS = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        MassBalance = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-    _verbose('done')
-    # Now we solve the governing equation
-    # Set up initial and boundary conditions
-    dSTp[0] = J[0] * dt
-    dSTp[1:M] = np.diff(ST_init).repeat(n_substeps)[0:M-1]/n_substeps
-    pQ1p[0] = rSAS_fun1.cdf_i(dSTp[:1], 0)
-    pQ1p[1:] = np.diff(rSAS_fun1.cdf_i(np.cumsum(dSTp), 0))
-    pQ2p[0] = rSAS_fun2.cdf_i(dSTp[:1], 0)
-    pQ2p[1:] = np.diff(rSAS_fun2.cdf_i(np.cumsum(dSTp), 0))
-    if full_outputs:
-        ST[:,0] = ST_init[:]
-        PQ1[:,0] = rSAS_fun1.cdf_i(ST_init, 0)
-        PQ2[:,0] = rSAS_fun2.cdf_i(ST_init, 0)
-    start_time = time.clock()
-    _verbose('...solving...')
-    # Primary solution loop over time t
-    for i in range(timeseries_length):
-    # Loop over substeps
-        for k in range(n_substeps):
-            # dSTp is the increments of ST at the previous age and previous timestep.
-            # It is therefore our first estimate of the increments of ST at this
-            # age and timestep. Add up the increments to get an estimate of ST
-            STu[0] = 0
-            STu[1:M+1] = np.cumsum(dSTp)
-            # Use this estimate to get an initial estimate of the
-            # transit time distribution PDFs, pQ1 and pQ2
-            pQ1u[:M] = np.diff(rSAS_fun1.cdf_i(STu, i))
-            pQ2u[:M] = np.diff(rSAS_fun2.cdf_i(STu, i))
-            # Iterate to refine the estimates
-            iteration = 0
-            max_increment = np.inf
-            STu_prev[:] = STu[:]
-            while (max_increment > inc_tol) & (iteration < max_iter):
-                STu, STu_prev = STu_prev, STu
-                # Estimate the outflow over the interval of time dt with an age
-                # T as the discharge over the timestep times the average of the
-                # PDF values at the start and the end of the timestep
-                dQ1outu[0] = Q1[i] * pQ1u[0]
-                dQ1outu[1:M] = Q1[i] * (pQ1u[1:M] + pQ1p[1:M])/2
-                dQ2outu[0] = Q2[i] * pQ2u[0]
-                dQ2outu[1:M] = Q2[i] * (pQ2u[1:M] + pQ2p[1:M])/2
-                # Update the estimate of dST, ST and the TTD PDFs to
-                # account for these outflows
-                dSTu[:M] = np.maximum(dSTp - dt * dQ1outu - dt * dQ2outu, 0.)
-                STu[1:M+1] = np.cumsum(dSTu)
-                pQ1u[:M] = np.diff(rSAS_fun1.cdf_i(STu, i))
-                pQ2u[:M] = np.diff(rSAS_fun2.cdf_i(STu, i))
-                iteration += 1
-                max_increment = np.max(np.abs(STu-STu_prev))
-            if iteration == max_iter:
-                _verbose('Warning: maximum number of iterations reached at timestep ' + str(i))
-                _verbose('Try increasing the number of substeps, or the number of iterations')
-            # Update the 'previous solution' record in preparation of the
-            # next solution timestep
-            dSTp[1:M] = dSTu[:M-1]
-            # Incorporate the boundary condition
-            if (k==n_substeps-1)&(i<timeseries_length-1):
-                dSTp[0] = J[i+1] * dt
-            else:
-                dSTp[0] = J[i] * dt
-            pQ1p[1:M] = pQ1u[:M-1]
-            pQ2p[1:M] = pQ2u[:M-1]
-            pQ1p[0] = 0
-            pQ2p[0] = 0
-            # Progressive evaluation of outflow concentration
-        if C_in is not None:
-            j = i * n_substeps + k
-            if evapoconcentration:
-                # If evapoconcentration=True, keep a running tab of how much of
-                # each timestep's inflow has become outflow
-                Q1out_total[:j+1] = Q1out_total[:j+1] + dQ1outu[j::-1]
-                # The enriched concentration in storge is the initial mass
-                # divided by the volume that has not evaporated
-                # C_in * J / (Q1out_total + dSTu)
-                # Get the current discharge concentration as the sum of previous
-                # (weighted) inputs, accounting for evapoconcentration
-                C_out[i] = np.sum(np.where(J[j::-1]>0, pQ1u[:j+1] * C_in_r[j::-1] * J[i::-1] / (Q1out_total[i::-1] + dSTu[:i+1]), 0.))
-            else:
-                # Get the current discharge concentration as the sum of previous
-                # (weighted) inputs
-                C_out[i] = np.sum(pQ1u[:j+1] * C_in_r[j::-1])
-            if C_old:
-                # Add the concentration of the 'unobserved fraction'
-                C_out[i] += (1 - np.sum(pQ1u[:j+1])) * C_old
-        # Store the result, if needed
-        if full_outputs:
-            ST[:max_age+1, i+1] =   STu[:M+1:n_substeps]
-            PQ1[:max_age+1, i+1] = np.r_[0., np.cumsum(pQ1u)][::n_substeps]
-            PQ2[:max_age+1, i+1] = np.r_[0., np.cumsum(pQ2u)][::n_substeps]
-            Q1out[1:max_age+1, i+1] = Q1out[:max_age, i] + dQ1outu[:M:n_substeps]
-            Q2out[1:max_age+1, i+1] = Q2out[:max_age, i] + dQ2outu[:M:n_substeps]
-            theta1[1:i+2, i+1] = np.where(J[i::-1]>0, Q1out[1:i+2, i+1] / J[i::-1], 0.)
-            theta2[1:i+2, i+1] = np.where(J[i::-1]>0, Q2out[1:i+2, i+1] / J[i::-1], 0.)
-            thetaS[1:i+2, i+1] = np.where(J[i::-1]>0, (ST[1:i+2, i+1] - ST[:i+1, i+1]) / J[i::-1], 0.)
-            MassBalance[1:i+2, i+1] = np.diff(ST[:i+2, i+1]) - dt * (J[i::-1] - Q1out[1:i+2, i+1] - Q2out[1:i+2, i+1])
-            MassBalance[i+2:max_age+1, i+1] = np.diff(ST[i+1:max_age+1, i+1]) - dt * (np.diff(ST_init[:max_age-i]) - Q1out[i+2:max_age+1, i+1] - Q2out[i+2:max_age+1, i+1])
-        if np.mod(i+1,1000)==0:
-            _verbose('...done ' + str(i+1) + ' of ' + str(max_age) + ' in ' + str(time.clock() - start_time) + ' seconds')
-    # Done. Return the outputs
-    if full_outputs and C_in is not None:
-        return C_out, ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance
-    elif full_outputs and C_in is None:
-        return ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance
-    elif not full_outputs and C_in is not None:
-        return C_out
-
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-def _solve_all_by_time_1out(np.ndarray[dtype_t, ndim=1] J,
-        np.ndarray[dtype_t, ndim=1] Q1,
-        rSAS_fun1,
-        np.ndarray[dtype_t, ndim=1] ST_init = None,
-        dtype_t dt = 1,
-        int max_iter = 25,
-        int n_substeps = 1,
-        float inc_tol = 1E-10,
-        full_outputs=True, C_in=None, C_old=None):
-    """rSAS model with 1 flux, solved by looping over timesteps.
-
-    Same as solve_all_by_time_2out, but for only one flux out.
-    See the docstring for rsas.solve for more information
-    """
-    # Initialization
-    # Define some variables
-    cdef int k, i, j, timeseries_length, num_inputs, max_age
-    cdef np.float64_t start_time
-    cdef np.ndarray[dtype_t, ndim=2] ST, PQ1, Q1out, theta1, thetaS, MassBalance
-    cdef np.ndarray[dtype_t, ndim=1] STu, pQ1u, pQ1p, dQ1outu, dSTu, dSTp, C_out
-    # Handle inputs
-    if ST_init is None:
-        ST_init=np.zeros(len(J) + 1)
-    else:
-        # This must be true
-        ST_init[0] = 0
-    # Some lengths
-    timeseries_length = len(J)
-    max_age = len(ST_init) - 1
-    M = max_age * n_substeps
-    # Expand the inputs to accomodate the substep solution points
-    dt = dt / n_substeps
-    # Create arrays to hold intermediate solutions
-    _verbose('...initializing arrays...')
-    pQ1p = np.zeros(M, dtype=np.float64)
-    STu = np.zeros(M+1, dtype=np.float64)
-    STu_prev = np.zeros(M+1, dtype=np.float64)
-    dQ1outu = np.zeros(M, dtype=np.float64)
-    pQ1u = np.zeros(M, dtype=np.float64)
-    dSTu = np.zeros(M, dtype=np.float64)
-    dSTp = np.zeros(M, dtype=np.float64)
-    if C_in is not None:
-        C_out = np.zeros(timeseries_length, dtype=np.float64)
-        C_in_r = C_in.repeat(n_substeps)
-    # Create arrays to hold the state variables if they are to be outputted
-    if full_outputs:
-        ST = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        PQ1 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        Q1out = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        theta1 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        thetaS = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        MassBalance = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-    _verbose('done')
-    # Now we solve the governing equation
-    # Set up initial and boundary conditions
-    dSTp[0] = J[0] * dt
-    dSTp[1:M] = np.diff(ST_init).repeat(n_substeps)[0:M-1]/n_substeps
-    pQ1p[0] = rSAS_fun1.cdf_i(dSTp[:1], 0)
-    pQ1p[1:] = np.diff(rSAS_fun1.cdf_i(np.cumsum(dSTp), 0))
-    if full_outputs:
-        ST[:,0] = ST_init[:]
-        PQ1[:,0] = rSAS_fun1.cdf_i(ST_init, 0)
-    start_time = time.clock()
-    _verbose('...solving...')
-    # Primary solution loop over time t
-    for i in range(timeseries_length):
-    # Loop over substeps
-        for k in range(n_substeps):
-            # dSTp is the increments of ST at the previous age and previous timestep.
-            # It is therefore our first estimate of the increments of ST at this
-            # age and timestep.
-            STu[0]=0
-            STu[1:M+1]=np.cumsum(dSTp)
-            # Use this estimate to get an initial estimate of the
-            # transit time distribution PDF, pQ1
-            pQ1u[0] = rSAS_fun1.cdf_i(dSTp[:1], i)
-            pQ1u[1:M] = np.diff(rSAS_fun1.cdf_i(np.cumsum(dSTp), i))
-            # Iterate to refine the estimates
-            iteration = 0
-            max_increment = np.inf
-            STu_prev[:] = STu[:]
-            while (max_increment > inc_tol) & (iteration < max_iter):
-                STu, STu_prev = STu_prev, STu
-                # Estimate the outflow over the interval of time dt with an age
-                # T as the discharge over the timestep times the average of the
-                # PDF values at the start and the end of the timestep
-                dQ1outu[0] = Q1[i] * pQ1u[0]
-                dQ1outu[1:M] = Q1[i] * (pQ1u[1:M] + pQ1p[1:M])/2
-                # Update the estimate of dST and the TTD PDF to
-                # account for the outflow
-                dSTu[:M] = np.maximum(dSTp - dt * dQ1outu, 0.)
-                STu[1:M+1] = np.cumsum(dSTu)
-                pQ1u[0] = rSAS_fun1.cdf_i(dSTu[:1], i)
-                pQ1u[1:M] = np.diff(rSAS_fun1.cdf_i(np.cumsum(dSTu), i))
-                iteration += 1
-                max_increment = np.max(np.abs(STu-STu_prev))
-            if iteration == max_iter:
-                _verbose('Warning: maximum number of iterations reached at timestep ' + str(i))
-                _verbose('Try increasing the number of substeps, or the number of iterations')
-            # Update the 'previous solution' record in preparation of the
-            # next solution timestep
-            dSTp[1:M] = dSTu[:M-1]
-            pQ1p[1:M] = pQ1u[:M-1]
-            # Incorporate the boundary condition
-            if (k==n_substeps-1)&(i<timeseries_length-1):
-                dSTp[0] = J[i+1] * dt
-            else:
-                dSTp[0] = J[i] * dt
-            # This vale is never used
-            pQ1p[0] = 0
-            # Progressive evaluation of outflow concentration
-        if C_in is not None:
-            j = i * n_substeps + k
-            C_out[i] = np.sum(pQ1u[:j+1] * C_in_r[j::-1])
-            if C_old:
-                C_out[i] += (1 - np.sum(pQ1u[:j+1])) * C_old
-        # Store the result, if needed
-        if full_outputs:
-            ST[:max_age+1, i+1] =   STu[:M+1:n_substeps]
-            PQ1[:max_age+1, i+1] = np.r_[0., np.cumsum(pQ1u)][::n_substeps]
-            Q1out[1:max_age+1, i+1] = Q1out[:max_age, i] + dQ1outu[:M:n_substeps]
-            theta1[1:i+2, i+1] = np.where(J[i::-1]>0, Q1out[1:i+2, i+1] / J[i::-1], 0.)
-            thetaS[1:i+2, i+1] = np.where(J[i::-1]>0, (ST[1:i+2, i+1] - ST[:i+1, i+1]) / J[i::-1], 0.)
-            MassBalance[1:i+2, i+1] = np.diff(ST[:i+2, i+1]) - dt * (J[i::-1] - Q1out[1:i+2, i+1])
-            MassBalance[i+2:max_age+1, i+1] = np.diff(ST[i+1:max_age+1, i+1]) - dt * (np.diff(ST_init[:max_age-i]) - Q1out[i+2:max_age+1, i+1])
-        if np.mod(i+1,1000)==0:
-            _verbose('...done ' + str(i+1) + ' of ' + str(max_age) + ' in ' + str(time.clock() - start_time) + ' seconds')
-    # Done. Return the outputs
-    if full_outputs and C_in is not None:
-        return C_out, ST, PQ1, Q1out, theta1, thetaS, MassBalance
-    elif full_outputs and C_in is None:
-        return ST, PQ1, Q1out, theta1, thetaS, MassBalance
-    elif not full_outputs and C_in is not None:
-        return C_out
+        raise TypeError('Incorrect solution mode.')
+    return result
 
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
-        np.ndarray[dtype_t, ndim=1] Q1,
-        rSAS_fun1,
-        np.ndarray[dtype_t, ndim=1] Q2 = None,
-        rSAS_fun2 = None,
+        np.ndarray[dtype_t, ndim=2] Q,
+        rSAS_fun,
         np.ndarray[dtype_t, ndim=1] ST_init = None,
         dtype_t dt = 1,
-        int max_iter = 25,
         int n_substeps = 1,
-        float inc_tol = 1E-10,
-        full_outputs=True, C_in=None, C_old=None):
+        full_outputs = True,
+        np.ndarray[dtype_t, ndim=2] MS_init = None,
+        np.ndarray[dtype_t, ndim=2] C_J = None,
+        np.ndarray[dtype_t, ndim=3] alpha = None,
+        np.ndarray[dtype_t, ndim=2] krate = None,
+        np.ndarray[dtype_t, ndim=1] C_old = None):
     """rSAS model, Runge-Kutta method
 
     See the docstring for rsas.solve for more information
@@ -878,148 +230,193 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
     # Initialization
     # Define some variables
     cdef int k, i, j, n, timeseries_length, num_inputs, max_age
-    cdef np.float64_t start_time, h
-    cdef np.ndarray[dtype_t, ndim=2] ST, thetaS, MassBalance
-    cdef np.ndarray[dtype_t, ndim=1] STp, STu, C_out, dST_init, C_in_r
-    cdef np.ndarray[dtype_t, ndim=2] PQ1, Q1out, theta1,
-    cdef np.ndarray[dtype_t, ndim=1] dPQ1u, PQ11, PQ12, PQ13, PQ14, PQ1u
-    cdef np.ndarray[dtype_t, ndim=2] PQ2, Q2out, theta2,
-    cdef np.ndarray[dtype_t, ndim=1] dPQ2u, PQ21, PQ22, PQ23, PQ24, PQ2u
     cdef int numflux
-    if Q2 is None:
-        numflux = 1
-    else:
-        numflux = 2
+    cdef np.float64_t start_time, h
+    cdef np.ndarray[dtype_t, ndim=1] STp, STn, STt, sTt, sTn
+    cdef np.ndarray[dtype_t, ndim=2] mSp, mSn, mSt
+    cdef np.ndarray[dtype_t, ndim=2] PQ1, PQ2, PQ3, PQ4, PQn, pQn, pQt
+    cdef np.ndarray[dtype_t, ndim=2] ST, WaterBalance
+    cdef np.ndarray[dtype_t, ndim=3] MS, SoluteBalance
+    cdef np.ndarray[dtype_t, ndim=3] mQ1, mQ2, mQ3, mQ4, cQn, mQn
+    cdef np.ndarray[dtype_t, ndim=3] PQ
+    cdef np.ndarray[dtype_t, ndim=4] MQ
+    cdef np.ndarray[dtype_t, ndim=3] C_Q
+    numflux = Q.shape[1]
     # Some lengths
     timeseries_length = len(J)
     max_age = len(ST_init) - 1
     M = max_age * n_substeps
     h = dt / n_substeps
-    # Create arrays to hold intermediate solutions
     _verbose('...initializing arrays...')
-    STu = np.zeros(M+1, dtype=np.float64)
+    if C_J is not None:
+        numsol = C_J.shape[1]
+    else:
+        numsol = 0
+    # Create arrays to hold intermediate solutions
+    STn = np.zeros(M+1, dtype=np.float64)
     STp = np.zeros(M+1, dtype=np.float64)
-    PQ1u = np.zeros(M+1, dtype=np.float64)
-    PQ11 = np.zeros(M+1, dtype=np.float64)
-    PQ12 = np.zeros(M+1, dtype=np.float64)
-    PQ13 = np.zeros(M+1, dtype=np.float64)
-    PQ14 = np.zeros(M+1, dtype=np.float64)
-    PQ1u = np.zeros(M+1, dtype=np.float64)
-    dPQ1u = np.zeros(M, dtype=np.float64)
-    if numflux>1:
-        PQ2u = np.zeros(M+1, dtype=np.float64)
-        PQ21 = np.zeros(M+1, dtype=np.float64)
-        PQ22 = np.zeros(M+1, dtype=np.float64)
-        PQ23 = np.zeros(M+1, dtype=np.float64)
-        PQ24 = np.zeros(M+1, dtype=np.float64)
-        PQ2u = np.zeros(M+1, dtype=np.float64)
-        dPQ2u = np.zeros(M, dtype=np.float64)
-    if C_in is not None:
-        C_out = np.zeros(timeseries_length, dtype=np.float64)
-        C_in_r = C_in.repeat(n_substeps)
+    STt = np.zeros(M+1, dtype=np.float64)
+    PQ1 = np.zeros((M+1, numflux), dtype=np.float64)
+    PQ2 = np.zeros((M+1, numflux), dtype=np.float64)
+    PQ3 = np.zeros((M+1, numflux), dtype=np.float64)
+    PQ4 = np.zeros((M+1, numflux), dtype=np.float64)
+    PQn = np.zeros((M+1, numflux), dtype=np.float64)
+    sTt = np.zeros((M), dtype=np.float64)
+    sTn = np.zeros((M), dtype=np.float64)
+    pQt = np.zeros((M, numflux), dtype=np.float64)
+    pQn = np.zeros((M, numflux), dtype=np.float64)
+    if numsol>0:
+        mQ1 = np.zeros((M, numflux, numsol), dtype=np.float64)
+        mQ2 = np.zeros((M, numflux, numsol), dtype=np.float64)
+        mQ3 = np.zeros((M, numflux, numsol), dtype=np.float64)
+        mQ4 = np.zeros((M, numflux, numsol), dtype=np.float64)
+        cQn = np.zeros((M, numflux, numsol), dtype=np.float64)
+        mQn = np.zeros((M, numflux, numsol), dtype=np.float64)
+        mSp = np.zeros((M, numsol), dtype=np.float64)
+        mSn = np.zeros((M, numsol), dtype=np.float64)
+        mSt = np.zeros((M, numsol), dtype=np.float64)
+        C_Q = np.zeros((timeseries_length, numflux, numsol), dtype=np.float64)
     # Create arrays to hold the state variables if they are to be outputted
     if full_outputs:
         ST = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        thetaS = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        MassBalance = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        PQ1 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        Q1out = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        theta1 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-        if numflux>1:
-            PQ2 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-            Q2out = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-            theta2 = np.zeros((max_age + 1, timeseries_length + 1), dtype=np.float64)
-    _verbose('done')
+        WaterBalance = np.zeros((max_age, timeseries_length), dtype=np.float64)
+        PQ = np.zeros((max_age + 1, timeseries_length + 1, numflux), dtype=np.float64)
+        if numsol>0:
+            MS = np.zeros((max_age + 1, timeseries_length + 1, numsol), dtype=np.float64)
+            MQ = np.zeros((max_age + 1, timeseries_length + 1, numflux, numsol), dtype=np.float64)
+            SoluteBalance = np.zeros((max_age, timeseries_length, numsol), dtype=np.float64)
+        else:
+            MS, MQ, SoluteBalance = np.zeros((0,0,0)), np.zeros((0,0,0,0)), np.zeros((0,0,0))
+    else:
+        MS, MQ, SoluteBalance = np.zeros((0,0,0)), np.zeros((0,0,0,0)), np.zeros((0,0,0))
+        ST, PQ, WaterBalance = np.zeros((0,0)), np.zeros((0,0)), np.zeros((0,0))
+    _verbose('...setting initial conditions...')
     # Now we solve the governing equation
     # Set up initial and boundary conditions
     if ST_init is not None:
-        STu[0:M+1:n_substeps] = ST_init
-        if n_substeps>1:
-            dST_init = np.diff(ST_init)
-            for k in range(1, n_substeps):
-                STu[k:M+1:n_substeps] = STu[k-1:M:n_substeps] + dST_init/n_substeps
-        PQ1u = rSAS_fun1.cdf_i(STu, 0)
-        if numflux>1:
-            PQ2u = rSAS_fun2.cdf_i(STu, 0)
+        STn[1:] = np.cumsum(np.diff(ST_init).repeat(n_substeps, axis=0))/n_substeps
+        PQn[:] = np.c_[[rSAS_fun[q].cdf_i(STn, 0) for q in range(numflux)]].T
+    sTn[:] = np.diff(STn)
+    if MS_init is not None:
+        mSn[:] = np.diff(MS_init, axis=0).repeat(n_substeps, axis=0)/n_substeps
     if full_outputs:
-        ST[:,0] = STu[0:M+1:n_substeps]
-        PQ1[:,0] = PQ1u[0:M+1:n_substeps]
-        if numflux>1:
-            PQ2[:,0] = PQ2u[0:M+1:n_substeps]
+        ST[:,0] = STn[0:M+1:n_substeps]
+        PQ[:,0,:] = PQn[0:M+1:n_substeps, :]
+        if numsol>0:
+            MS[:,0,:] = np.r_[np.zeros((1, numsol)), np.cumsum(mSn, axis=0)][0:M+1:n_substeps]
     start_time = time.clock()
-    _verbose('...solving...')
+    _verbose('...solving conservation law...')
     # Primary solution loop over time t
     for i in range(timeseries_length):
     # Loop over substeps
-        if numflux==1:
-            for k in range(n_substeps):
-                STu, STp = STp, STu
-                PQ11[:] = rSAS_fun1.cdf_i( STp                              , i)
-                PQ12[:] = rSAS_fun1.cdf_i( STp + (J[i] - Q1[i] * PQ11) * h/2, i)
-                PQ13[:] = rSAS_fun1.cdf_i( STp + (J[i] - Q1[i] * PQ12) * h/2, i)
-                PQ14[:] = rSAS_fun1.cdf_i( STp + (J[i] - Q1[i] * PQ13) * h  , i)
-                PQ1u[:] = (PQ11 + 2*PQ12 + 2*PQ13 + PQ14) / 6.
-                STu[1:M+1] = STp[0:M] + h * (J[i] - Q1[i] * PQ1u[0:M])
-            dPQ1u[:] = np.diff(PQ1u)
-        else:
-            for k in range(n_substeps):
-                STu, STp = STp, STu
-                PQ11[:] = rSAS_fun1.cdf_i( STp                                     , i)
-                PQ21[:] = rSAS_fun2.cdf_i( STp                                     , i)
-                PQ12[:] = rSAS_fun1.cdf_i( STp + (J[i] - Q1[i] * PQ11 - Q2[i] * PQ21) * h/2, i)
-                PQ22[:] = rSAS_fun2.cdf_i( STp + (J[i] - Q1[i] * PQ11 - Q2[i] * PQ21) * h/2, i)
-                PQ13[:] = rSAS_fun1.cdf_i( STp + (J[i] - Q1[i] * PQ12 - Q2[i] * PQ22) * h/2, i)
-                PQ23[:] = rSAS_fun2.cdf_i( STp + (J[i] - Q1[i] * PQ12 - Q2[i] * PQ22) * h/2, i)
-                PQ14[:] = rSAS_fun1.cdf_i( STp + (J[i] - Q1[i] * PQ13 - Q2[i] * PQ23) * h  , i)
-                PQ24[:] = rSAS_fun2.cdf_i( STp + (J[i] - Q1[i] * PQ13 - Q2[i] * PQ23) * h  , i)
-                PQ1u[:] = (PQ11 + 2*PQ12 + 2*PQ13 + PQ14) / 6.
-                PQ2u[:] = (PQ21 + 2*PQ22 + 2*PQ23 + PQ24) / 6.
-                STu[1:M+1] = STp[0:M] + h * (J[i] - Q1[i] * PQ1u[0:M] - Q2[i] * PQ2u[0:M])
-            dPQ1u[:] = np.diff(PQ1u)
-            dPQ2u[:] = np.diff(PQ2u)
-        if C_in is not None:
-            n = i * n_substeps + k
-            C_out[i] = np.sum(dPQ1u[:n+1] * C_in_r[n::-1])
-            if C_old:
-                C_out[i] += (1 - PQ1u[n+1]) * C_old
-        # Store the result, if needed
+        for k in range(n_substeps):
+            _debug('(i,k) = {},{}, '.format(i,k))
+            STn, STp = STp, STn
+            sTt = np.roll(sTn,1)
+            sTt[0] = h * J[i]
+            if numsol>0:
+                mSn, mSp = mSp, mSn
+                mSp = np.roll(mSp,1)
+                mSp[0,:] = 0.
+            _debug('K1, ')
+            for q in range(numflux):
+                PQ1[:,q] = rSAS_fun[q].cdf_i(STp, i)
+            pQt[1:,:] = np.diff(PQ1[0:M,:], axis=0)
+            pQt[0,:] = PQ1[0,:]
+            for q in range(numflux):
+                for s in range(numsol):
+                    mQ1[:,q,s] = np.where(sTt>0, mSp[:,s] * alpha[i,q,s] * Q[i,q] * pQt[:,q] / sTt, 0.)
+            STt[:] = STp + (J[i] - np.dot(Q[i,:], PQ1.T)) * h/2
+            for s in range(numsol):
+                mSt[:,s] = mSp[:,s] - np.sum(mQ1[:,:,s], axis=1) * h/2
+                mSt[0,s] += J[i] * C_J[i,s] * h/2
+            _debug('K2, ')
+            for q in range(numflux):
+                PQ2[:,q] = rSAS_fun[q].cdf_i(STt, i)
+            sTt[1:] = np.diff(STt[0:M], axis=0)
+            sTt[0] = STt[0]
+            pQt[1:,:] = np.diff(PQ2[0:M,:], axis=0)
+            pQt[0,:] = PQ2[0,:]
+            for q in range(numflux):
+                for s in range(numsol):
+                    mQ2[:,q,s] = np.where(sTt>0, mSt[:,s] * alpha[i,q,s] * Q[i,q] * pQt[:,q] / sTt, 0.)
+            STt[:] = STp + (J[i] - np.dot(Q[i,:],PQ2.T)) * h/2
+            for s in range(numsol):
+                mSt[:,s] = mSp[:,s] - np.sum(mQ2[:,:,s], axis=1) * h/2
+                mSt[0,s] += J[i] * C_J[i,s] * h/2
+            _debug('K3, ')
+            for q in range(numflux):
+                PQ3[:,q] = rSAS_fun[q].cdf_i(STt, i)
+            sTt[1:] = np.diff(STt[0:M], axis=0)
+            sTt[0] = STt[0]
+            pQt[1:,:] = np.diff(PQ3[0:M,:], axis=0)
+            pQt[0,:] = PQ2[0,:]
+            for q in range(numflux):
+                for s in range(numsol):
+                    mQ3[:,q,s] = np.where(sTt>0, mSt[:,s] * alpha[i,q,s] * Q[i,q] * pQt[:,q] / sTt, 0.)
+            STt[:] = STp + (J[i] - np.dot(Q[i,:],PQ3.T)) * h
+            for s in range(numsol):
+                mSt[:,s] = mSp[:,s] - np.sum(mQ3[:,:,s], axis=1) * h
+                mSt[0,s] += J[i] * C_J[i,s] * h
+            _debug('K4, ')
+            for q in range(numflux):
+                PQ4[:,q] = rSAS_fun[q].cdf_i(STt, i)
+            sTt[1:] = np.diff(STt[0:M], axis=0)
+            sTt[0] = STt[0]
+            pQt[1:,:] = np.diff(PQ4[0:M,:], axis=0)
+            pQt[0,:] = PQ2[0,:]
+            for q in range(numflux):
+                for s in range(numsol):
+                    mQ4[:,q,s] = np.where(sTt>0, mSt[:,s] * alpha[i,q,s] * Q[i,q] * pQt[:,q] / sTt, 0.)
+            _debug('Finalizing\n')
+            PQn[1:M+1] = (PQ1 + 2*PQ2 + 2*PQ3 + PQ4)[:M] / 6.
+            STn[1:M+1] = STp[0:M] + h * (J[i] - np.dot(Q[i,:], PQn[1:M+1,:].T))
+            sTn = np.diff(STn, axis=0)
+            pQn = np.diff(PQn, axis=0)
+            if numsol>0:
+                mQn = (mQ1 + 2*mQ2 + 2*mQ3 + mQ4) / 6.
+            for s in range(numsol):
+                mSn[:,s] = mSp[:,s]
+                mSn[0,s]+= J[i] * C_J[i,s] * h
+                for q in range(numflux):
+                    mSn[:,s] += - mQn[:,q,s] * h
+                    if Q[i,q]>0:
+                        cQn[:,q,s] = np.where(pQn[:,q]>0, mQn[:,q,s] / (Q[i,q] * pQn[:,q]), 0.)
+                        C_Q[i,q,s] += np.sum(cQn[:,q,s] * pQn[:,q], axis=0) / n_substeps
+            if numsol>0:
+                mSn[:] = np.maximum(0., mSn)
+            if full_outputs:
+                for q in range(numflux):
+                    PQ[1, i+1, q] += np.sum(pQn[:k+1, q])/n_substeps
+                    PQ[2:max_age+1, i+1, q] += np.sum(np.reshape(pQn[k+1:M-(n_substeps-k-1), q],(max_age-1,n_substeps)), axis=1)/n_substeps
+                    for s in range(numsol):
+                        MQ[1, i+1, q, s] += np.sum(mQn[:k+1, q, s], axis=0)/n_substeps
+                        MQ[2:max_age+1, i+1, q, s] += np.sum(np.reshape(mQn[k+1:M-(n_substeps-k-1), q, s],(max_age-1,n_substeps)), axis=1)/n_substeps
         if full_outputs:
-            if numflux==1:
-                ST[:max_age+1, i+1] = STu[:M+1:n_substeps]
-                PQ1[:max_age+1, i+1] = PQ1u[:M+1:n_substeps]
-                Q1out[1:max_age+1, i+1] = Q1out[:max_age, i] + Q1[i] * dPQ1u[:M:n_substeps]
-                theta1[1:i+2, i+1] = np.where(J[i::-1]>0, Q1out[1:i+2, i+1] / J[i::-1], 0.)
-                thetaS[1:i+2, i+1] = np.where(J[i::-1]>0, (ST[1:i+2, i+1] - ST[:i+1, i+1]) / J[i::-1], 0.)
-                MassBalance[1:i+2, i+1] = np.diff(ST[:i+2, i+1]) - h * (J[i::-1] - Q1out[1:i+2, i+1])
-                MassBalance[i+2:max_age+1, i+1] = np.diff(ST[i+1:max_age+1, i+1]) - h * (np.diff(ST_init[:max_age-i]) - Q1out[i+2:max_age+1, i+1])
-            else:
-                ST[:max_age+1, i+1] = STu[:M+1:n_substeps]
-                PQ1[:max_age+1, i+1] = PQ1u[:M+1:n_substeps]
-                dPQ1u = np.diff(PQ1u)
-                Q1out[1:max_age+1, i+1] = Q1out[:max_age, i] + Q1[i] * dPQ1u[:M:n_substeps]
-                PQ2[:max_age+1, i+1] = PQ2u[:M+1:n_substeps]
-                dPQ2u = np.diff(PQ2u)
-                Q2out[1:max_age+1, i+1] = Q2out[:max_age, i] + Q2[i] * dPQ2u[:M:n_substeps]
-                theta1[1:i+2, i+1] = np.where(J[i::-1]>0, Q1out[1:i+2, i+1] / J[i::-1], 0.)
-                theta2[1:i+2, i+1] = np.where(J[i::-1]>0, Q2out[1:i+2, i+1] / J[i::-1], 0.)
-                thetaS[1:i+2, i+1] = np.where(J[i::-1]>0, (ST[1:i+2, i+1] - ST[:i+1, i+1]) / J[i::-1], 0.)
-                MassBalance[1:i+2, i+1] = np.diff(ST[:i+2, i+1]) - dt * (J[i::-1] - Q1out[1:i+2, i+1] - Q2out[1:i+2, i+1])
-                MassBalance[i+2:max_age+1, i+1] = np.diff(ST[i+1:max_age+1, i+1]) - dt * (np.diff(ST_init[:max_age-i]) - Q1out[i+2:max_age+1, i+1] - Q2out[i+2:max_age+1, i+1])
+            _debug(' Storing the result')
+            _debug('  Water')
+            ST[:max_age+1, i+1] = STn[:M+1:n_substeps]
+            PQ[:,i+1,:] = np.cumsum(PQ[:,i+1,:], axis=0)
+            _debug('  WaterBalance')
+            WaterBalance[1:max_age, i] = np.diff(ST[0:max_age, i])-np.diff(ST[1:max_age+1, i+1]) - dt * np.dot(Q[i,:], np.diff(PQ[1:,i+1,:],axis=0).T)
+            WaterBalance[0, i] = J[i] * dt - ST[1, i+1] - dt * np.dot(Q[i,:], PQ[1,i+1,:] - PQ[0,i+1,:])
+            if numsol>0:
+                _debug('  Solutes')
+                MS[:max_age+1, i+1, :] = np.r_[np.zeros((1,numsol)), np.cumsum(mSn, axis=0)][:M+1:n_substeps]
+                MQ[:,i+1,:,:] = np.cumsum(MQ[:,i+1,:,:], axis=0)
+                C_Q[i,q,s] += C_old * (1 - PQ[max_age, i+1])
+                for s in range(numsol):
+                    _debug('  SolutesBalance')
+                    SoluteBalance[1:max_age,i,s] = (np.diff(MS[0:max_age,i,s], axis=0) - np.diff(MS[1:max_age+1,i+1,s], axis=0)
+                                                    - dt * np.sum(np.diff(MQ[1:,i+1,:,s], axis=0), axis=1))
+                    SoluteBalance[0,i,s] = C_J[i,s] * J[i] * dt - MS[1,i+1,s] - dt * np.sum(MQ[1,i+1,:,s] - MQ[0,i+1,:,s])
+            _debug('\n')
         if np.mod(i+1,1000)==0:
             _verbose('...done ' + str(i+1) + ' of ' + str(max_age) + ' in ' + str(time.clock() - start_time) + ' seconds')
-    if numflux==1:
-        # Done. Return the outputs
-        if full_outputs and C_in is not None:
-            return C_out, ST, PQ1, Q1out, theta1, thetaS, MassBalance
-        elif full_outputs and C_in is None:
-            return ST, PQ1, Q1out, theta1, thetaS, MassBalance
-        elif not full_outputs and C_in is not None:
-            return C_out
+    _verbose(' Making result')
+    if numsol>0:
+        result = {'ST':ST, 'PQ':PQ, 'WaterBalance':WaterBalance, 'MS':MS, 'MQ':MQ, 'C_Q':C_Q, 'SoluteBalance':SoluteBalance}
     else:
-        # Done. Return the outputs
-        if full_outputs and C_in is not None:
-            return C_out, ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance
-        elif full_outputs and C_in is None:
-            return ST, PQ1, PQ2, Q1out, Q2out, theta1, theta2, thetaS, MassBalance
-        elif not full_outputs and C_in is not None:
-            return C_out
+        result = {'ST':ST, 'PQ':PQ, 'WaterBalance':WaterBalance}
+    _verbose(' done.')
+    return result
