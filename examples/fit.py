@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Storage selection (SAS) functions: example with multiple fluxes out at steady state
+"""Storage selection (SAS) functions: example with parmeter estimation
 
-Runs the rSAS model for a synthetic dataset with one flux in and
-multiple fluxes out and steady state flow
+Estimate parameters for the rSAS model for a synthetic dataset
+with one flux in and one flux out
 
 Theory is presented in:
 Harman, C. J. (2014), Time-variable transit time distributions and transport:
@@ -32,69 +32,65 @@ S = data['S'].values
 # Parameters needed by rsas
 # =========================
 # The concentration of water older than the start of observations
-C_old = ((J*C_J)[J>0]).sum()/((J)[J>0]).sum()
-# =========================
-# Create the rsas functions
-# =========================
-S_dead = 10.
-#lam = 0.
-# Uniform
-# Parameters for the rSAS function
-Q_rSAS_fun_type = 'uniform'
-ST_min = np.zeros(N)
-ST_max = S + S_dead
-Q_rSAS_fun_parameters = np.c_[ST_min, ST_max]
-rSAS_fun_Q1 = rsas.create_function(Q_rSAS_fun_type, Q_rSAS_fun_parameters)
-rSAS_fun = [rSAS_fun_Q1]
-# Kumaraswami
-## Parameters for the rSAS function
-#Q_rSAS_fun_type = 'kumaraswami'
-#ST_min = np.ones(N) * 0.
-#ST_max = S + S_dead
-#a = np.maximum(0.01, 2. +  lam * (S - S.mean())/S.std())
-#b = np.ones(N) * 5.
-#Q_rSAS_fun_parameters = np.c_[a, b, ST_min, ST_max]
-#rSAS_fun_Q1 = rsas.create_function(Q_rSAS_fun_type, Q_rSAS_fun_parameters)
-#rSAS_fun = [rSAS_fun_Q1]
+C_old = ((J*C_J)[J>0]).sum()/(J[J>0]).sum()
 # =================
 # Initial condition
 # =================
 # Unknown initial age distribution, so just set this to zeros
 ST_init = np.zeros(N + 1)
-# =============
-# Run the model
-# =============
-# Run it
-outputs = rsas.solve(J, Q, rSAS_fun, ST_init=ST_init,
-                     mode='RK4', dt = 1., n_substeps=3, C_J=C_J, C_old=[C_old], verbose=False, debug=False)
-# Let's pull these out to make the outputs from rsas crystal clear
-# State variables: age-ranked storage of water and solutes
-# ROWS of ST, MS are T - ages
-# COLUMNS of ST, MS are t - times
-# LAYERS of MS are s - solutes
+# =================
+# Parameter optimization
+# =================
+# Make a function that runs the model given set of parameters
+def run(params):
+    # Unroll the parameters
+    S_dead, lam = params
+    # Define the rSAS function
+    Q_rSAS_fun_type = 'kumaraswami'
+    ST_min = np.ones(N) * 0.
+    ST_max = S + S_dead
+    a = np.maximum(0.01, 2. +  lam * (S - S.mean())/S.std())
+    b = np.ones(N) * 5.
+    Q_rSAS_fun_parameters = np.c_[ST_min, ST_max, a, b]
+    rSAS_fun_Q1 = rsas.create_function(Q_rSAS_fun_type, Q_rSAS_fun_parameters)
+    rSAS_fun = [rSAS_fun_Q1]
+    # Run the model
+    outputs = rsas.solve(J, Q, rSAS_fun, ST_init=ST_init,
+                         mode='RK4', dt = 1., n_substeps=1, C_J=C_J, C_old=[C_old], verbose=False, debug=False)
+    # Return the results
+    return outputs, rSAS_fun
+# Make a function that returns the RMS error associated with a
+# particular set of parameters
+def err(params):
+    outputs, _ = run(params)
+    C_mod = outputs['C_Q'][:,0,0]
+    isobs = np.isfinite(C_Q1)
+    err = np.sqrt(((C_Q1[isobs]-C_mod[isobs])**2).mean())
+    print params, err
+    return err
+# Start with a good initial guess of the parameters
+# Notice above that the first line of the run function unrolls
+# this list by assuming the first entry is S_dead and the second
+# is lam. You can include as many parameters here as you like, but
+# you must also change the line where they are unrolled.
+params0 = [10., -0.2]
+# run the optimzer
+from scipy.optimize import fmin
+params_opt = fmin(err, params0)
+S_dead, lam = params_opt
+print "Optimum parameter set = ", params_opt
+# run the model for these parameters
+outputs, rSAS_fun = run(params_opt)
+# extract the outputs
 ST = outputs['ST']
-MS = outputs['MS'][:,:,0]
-# Timestep-averaged backwards TTD
-# ROWS of PQ are T - ages
-# COLUMNS of PQ are t - times
-# LAYERS of PQ are q - fluxes
 PQ1m = outputs['PQ'][:,:,0]
-# Timestep-averaged outflow concentration
-# ROWS of C_Q are t - times
-# COLUMNS of PQ are q - fluxes
 C_Q1m1 = outputs['C_Q'][:,0,0]
-# Timestep averaged solute load out
-# ROWS of MQ are T - ages
-# COLUMNS of MQ are t - times
-# LAYERS of MQ are q - fluxes
-# Last dimension of MS are s - solutes
-MQ1m = outputs['MQ'][:,:,0,0]
 #%%
 # ==================================
 # Plot the rSAS function
 # ==================================
 STx = np.linspace(0,S.max()+S_dead,100)
-Omega = np.r_[[rSAS_fun_Q1.cdf_i(STx,i) for i in range(N)]].T
+Omega = np.r_[[rSAS_fun[0].cdf_i(STx,i) for i in range(N)]].T
 import matplotlib.cm as cm
 fig = plt.figure(0)
 plt.clf()
@@ -121,8 +117,8 @@ plt.title('Cumulative transit time distribution')
 # =====================================================================
 # Lets get the instantaneous value of the TTD at the end of each timestep
 PQ1i = np.zeros((N+1, N+1))
-PQ1i[:,0]  = rSAS_fun_Q1.cdf_i(ST[:,0],0)
-PQ1i[:,1:] = np.r_[[rSAS_fun_Q1.cdf_i(ST[:,i+1],i) for i in range(N)]].T
+PQ1i[:,0]  = rSAS_fun[0].cdf_i(ST[:,0],0)
+PQ1i[:,1:] = np.r_[[rSAS_fun[0].cdf_i(ST[:,i+1],i) for i in range(N)]].T
 # Use the transit time distribution and input timeseries to estimate
 # the output timeseries for the instantaneous and timestep-averaged cases
 C_Q1i, C_Q1i_raw, Q1i_observed_fraction = rsas.transport(PQ1i, C_J, C_old)

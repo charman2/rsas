@@ -44,7 +44,7 @@ C_old = 0.
 Q_rSAS_fun_type = 'uniform'
 ST_min = np.ones(N) * 0.
 ST_max = np.ones(N) * S_0
-Q_rSAS_fun_parameters = np.c_[S_min, ST_max]
+Q_rSAS_fun_parameters = np.c_[ST_min, ST_max]
 rSAS_fun_Q1 = rsas.create_function(Q_rSAS_fun_type, Q_rSAS_fun_parameters)
 # =================
 # Initial condition
@@ -57,6 +57,7 @@ ST_init = np.zeros(N + 1)
 # Run it
 outputs = rsas.solve(J, Q, [rSAS_fun_Q1], ST_init=ST_init,
                      mode='RK4', dt = 1., n_substeps=n_substeps, C_J=C_J, C_old=[C_old], verbose=False, debug=False)
+#%%
 # Timestep-averaged outflow concentration
 # ROWS of C_Q are t - times
 # COLUMNS of PQ are q - fluxes

@@ -30,8 +30,8 @@ n_substeps = 10
 J = np.ones(N) * (Q1_0 + Q2_0)
 Q = np.c_[[np.ones(N) * Q1_0, np.ones(N) * Q2_0]].T
 # A random timeseries of concentrations
-#C_J = np.ones((N,1))
-C_J = -np.log(np.random.rand(N,1))
+C_J = np.ones((N,1))
+#C_J = -np.log(np.random.rand(N,1))
 # =========================
 # Parameters needed by rsas
 # =========================
@@ -63,7 +63,7 @@ ST_init = np.zeros(N + 1)
 # =============
 # Run it
 outputs = rsas.solve(J, Q, rSAS_fun, ST_init=ST_init,
-                     mode='RK4', dt = 1., n_substeps=n_substeps, C_J=C_J, C_old=[C_old], verbose=True, debug=True)
+                     mode='RK4', dt = 1., n_substeps=n_substeps, C_J=C_J, C_old=[C_old], verbose=False, debug=False)
 # Let's pull these out to make the outputs from rsas crystal clear
 # State variables: age-ranked storage of water and solutes
 # ROWS of ST, MS are T - ages
@@ -89,6 +89,7 @@ C_Q2m1 = outputs['C_Q'][:,1,0]
 # Last dimension of MQ are s - solutes
 MQ1m = outputs['MQ'][:,:,0,0]
 MQ2m = outputs['MQ'][:,:,1,0]
+#%%
 # ==================================
 # Plot the age-ranked storage
 # ==================================
@@ -114,7 +115,7 @@ PQ1i = np.zeros((N+1, N+1))
 PQ1i[:,0]  = rSAS_fun_Q1.cdf_i(ST[:,0],0)
 PQ1i[:,1:] = np.r_[[rSAS_fun_Q1.cdf_i(ST[:,i+1],i) for i in range(N)]].T
 # Lets also get the exact TTD for the combined flux out
-n=1000
+n=100
 T=np.arange(N*n+1.)/n
 PQ1e = np.tile(1-np.exp(-T/T_0), (N*n+1., 1)).T
 # Use the transit time distribution and input timeseries to estimate

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Storage selection (SAS) functions: example with two flux out at steady state
+"""Storage selection (SAS) functions: example with three solutes
 
-Runs the rSAS model for a synthetic dataset with two flux in and out
-and steady state flow
+Runs the rSAS model for a synthetic dataset with two fluxes out
+and three solutes
 
 Theory is presented in:
 Harman, C. J. (2014), Time-variable transit time distributions and transport:
@@ -39,7 +39,9 @@ C_J = np.tile(-np.log(np.random.rand(N,1)), (1,3))
 C_old = [0., 0., 0.]
 alpha = np.ones((N,2,3))
 alpha[:,0,1] = 0.5
-alpha[:,0,2] = 0.
+alpha[:,1,1] = 0.5
+alpha[:,0,2] = 0.5
+alpha[:,1,2] = 1.0
 # =========================
 # Create the rsas functions
 # =========================
@@ -61,14 +63,14 @@ rSAS_fun_Q2 = rsas.create_function(Q_rSAS_fun_type, Q_rSAS_fun_parameters)
 # =================
 # Unknown initial age distribution, so just set this to zeros
 ST_init = np.zeros(N + 1)
-MS_init = np.zeros((N + 1, 3))
+MS_init = np.zeros((N + 1, 1))
 # =============
 # Run the model
 # =============
 # Run it
 #TODO check PQ with n_substeps>1
 outputs = rsas.solve(J, Q, [rSAS_fun_Q1, rSAS_fun_Q2], ST_init=ST_init, MS_init=MS_init,
-                     mode='RK4', dt = 1., n_substeps=1, C_J=C_J, C_old=C_old, alpha=alpha, verbose=True, debug=True)
+                     mode='RK4', dt = 1., n_substeps=10, C_J=C_J, C_old=C_old, alpha=alpha, verbose=False, debug=False)
 # Let's pull these out to make the outputs from rsas crystal clear
 # State variables: age-ranked storage of water and solutes
 # ROWS of ST, MS are T - ages
@@ -76,8 +78,8 @@ outputs = rsas.solve(J, Q, [rSAS_fun_Q1, rSAS_fun_Q2], ST_init=ST_init, MS_init=
 # LAYERS of MS are s - solutes
 ST = outputs['ST']
 MS1 = outputs['MS'][:,:,0]
-MS2 = outputs['MS'][:,:,1]
-MS3 = outputs['MS'][:,:,2]
+#MS2 = outputs['MS'][:,:,1]
+#MS3 = outputs['MS'][:,:,2]
 # Timestep-averaged backwards TTD
 # ROWS of PQ are T - ages
 # COLUMNS of PQ are t - times
@@ -99,12 +101,12 @@ C3_Q2m1 = outputs['C_Q'][:,1,2]
 # COLUMNS of MQ are t - times
 # LAYERS of MQ are q - fluxes
 # Last dimension of MS are s - solutes
-M11m = outputs['MQ'][:,:,0,0]
-M12m = outputs['MQ'][:,:,1,0]
-M21m = outputs['MQ'][:,:,0,1]
-M22m = outputs['MQ'][:,:,1,1]
-M31m = outputs['MQ'][:,:,0,2]
-M32m = outputs['MQ'][:,:,1,2]
+#M11m = outputs['MQ'][:,:,0,0]
+#M12m = outputs['MQ'][:,:,1,0]
+#M21m = outputs['MQ'][:,:,0,1]
+#M22m = outputs['MQ'][:,:,1,1]
+#M31m = outputs['MQ'][:,:,0,2]
+#M32m = outputs['MQ'][:,:,1,2]
 # ==================================
 # Plot the age-ranked storage
 # ==================================
@@ -130,7 +132,7 @@ PQ1i = np.zeros((N+1, N+1))
 PQ1i[:,0]  = rSAS_fun_Q1.cdf_i(ST[:,0],0)
 PQ1i[:,1:] = np.r_[[rSAS_fun_Q1.cdf_i(ST[:,i+1],i) for i in range(N)]].T
 # Lets also get the exact TTD for the combined flux out
-n=20
+n=100
 T=np.arange(N*n+1.)/n
 PQ1e = np.tile(1-np.exp(-T/T_0), (N*n+1., 1)).T
 # Use the transit time distribution and input timeseries to estimate
