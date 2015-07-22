@@ -63,7 +63,7 @@ ST_init = np.zeros(N + 1)
 # =============
 # Run it
 outputs = rsas.solve(J, Q, rSAS_fun, ST_init=ST_init,
-                     mode='RK4', dt = 1., n_substeps=n_substeps, C_J=C_J, C_old=[C_old])
+                     mode='RK4', dt = 1., n_substeps=n_substeps, C_J=C_J, C_old=[C_old], verbose=True, debug=True)
 # Let's pull these out to make the outputs from rsas crystal clear
 # State variables: age-ranked storage of water and solutes
 # ROWS of ST, MS are T - ages
@@ -79,14 +79,14 @@ PQ1m = outputs['PQ'][:,:,0]
 PQ2m = outputs['PQ'][:,:,1]
 # Timestep-averaged outflow concentration
 # ROWS of C_Q are t - times
-# COLUMNS of PQ are q - fluxes
+# COLUMNS of C_Q are q - fluxes
 C_Q1m1 = outputs['C_Q'][:,0,0]
 C_Q2m1 = outputs['C_Q'][:,1,0]
 # Timestep averaged solute load out
 # ROWS of MQ are T - ages
 # COLUMNS of MQ are t - times
 # LAYERS of MQ are q - fluxes
-# Last dimension of MS are s - solutes
+# Last dimension of MQ are s - solutes
 MQ1m = outputs['MQ'][:,:,0,0]
 MQ2m = outputs['MQ'][:,:,1,0]
 # ==================================
