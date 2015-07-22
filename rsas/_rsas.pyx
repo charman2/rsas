@@ -404,7 +404,7 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
                 _debug('  Solutes')
                 MS[:max_age+1, i+1, :] = np.r_[np.zeros((1,numsol)), np.cumsum(mSn, axis=0)][:M+1:n_substeps]
                 MQ[:,i+1,:,:] = np.cumsum(MQ[:,i+1,:,:], axis=0)
-                C_Q[i,q,s] += C_old * (1 - PQ[max_age, i+1])
+                C_Q[i,q,s] += C_old[s] * (1 - PQ[max_age, i+1, q])
                 for s in range(numsol):
                     _debug('  SolutesBalance')
                     SoluteBalance[1:max_age,i,s] = (np.diff(MS[0:max_age,i,s], axis=0) - np.diff(MS[1:max_age+1,i+1,s], axis=0)
