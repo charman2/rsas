@@ -376,8 +376,8 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
                     if Q[i,q]>0:
                         cQn[:,q,s] = np.where(pQn[:,q]>0, mQn[:,q,s] / (Q[i,q] * pQn[:,q]), 0.)
                         C_Q[i,q,s] += np.sum(cQn[:,q,s] * pQn[:,q], axis=0) / n_substeps
-            if numsol>0:
-                mSn[:] = np.maximum(0., mSn)
+            #if numsol>0:
+            #    mSn[:] = np.maximum(0., mSn)
             if full_outputs:
                 for q in range(numflux):
                     PQ[1, i+1, q] += np.sum(pQn[:k+1, q])/n_substeps
