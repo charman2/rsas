@@ -316,7 +316,7 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
             for q in range(numflux):
                 for s in range(numsol):
                     mQ1[:,q,s] = np.where(sTt>0, mSp[:,s] * alpha[i,q,s] * Q[i,q] * pQt[:,q] / sTt, 0.)
-            STt[:] = STp + (J[i] - np.dot(Q[i,:], PQ1.T)) * h/2
+            STt[:] = np.maximum(0., STp + (J[i] - np.dot(Q[i,:], PQ1.T)) * h/2)
             for s in range(numsol):
                 mSt[:,s] = mSp[:,s] - np.sum(mQ1[:,:,s], axis=1) * h/2
                 mSt[0,s] += J[i] * C_J[i,s] * h/2
@@ -330,7 +330,7 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
             for q in range(numflux):
                 for s in range(numsol):
                     mQ2[:,q,s] = np.where(sTt>0, mSt[:,s] * alpha[i,q,s] * Q[i,q] * pQt[:,q] / sTt, 0.)
-            STt[:] = STp + (J[i] - np.dot(Q[i,:],PQ2.T)) * h/2
+            STt[:] = np.maximum(0., STp + (J[i] - np.dot(Q[i,:], PQ2.T)) * h/2)
             for s in range(numsol):
                 mSt[:,s] = mSp[:,s] - np.sum(mQ2[:,:,s], axis=1) * h/2
                 mSt[0,s] += J[i] * C_J[i,s] * h/2
@@ -344,7 +344,7 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
             for q in range(numflux):
                 for s in range(numsol):
                     mQ3[:,q,s] = np.where(sTt>0, mSt[:,s] * alpha[i,q,s] * Q[i,q] * pQt[:,q] / sTt, 0.)
-            STt[:] = STp + (J[i] - np.dot(Q[i,:],PQ3.T)) * h
+            STt[:] = np.maximum(0., STp + (J[i] - np.dot(Q[i,:], PQ3.T)) * h/2)
             for s in range(numsol):
                 mSt[:,s] = mSp[:,s] - np.sum(mQ3[:,:,s], axis=1) * h
                 mSt[0,s] += J[i] * C_J[i,s] * h
@@ -374,8 +374,9 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
                 for q in range(numflux):
                     mSn[:,s] += - mQn[:,q,s] * h
                     if Q[i,q]>0:
-                        cQn[:,q,s] = np.where(pQn[:,q]>0, mQn[:,q,s] / (Q[i,q] * pQn[:,q]), 0.)
-                        C_Q[i,q,s] += np.sum(cQn[:,q,s] * pQn[:,q], axis=0) / n_substeps
+                        #cQn[:,q,s] = np.where(pQn[:,q]>0, mQn[:,q,s] / (Q[i,q] * pQn[:,q]), 0.)
+                        #C_Q[i,q,s] += np.sum(cQn[:,q,s] * pQn[:,q], axis=0) / n_substeps
+                        C_Q[i,q,s] += np.sum(mQn[:,q,s]) / Q[i,q] / n_substeps
             #if numsol>0:
             #    mSn[:] = np.maximum(0., mSn)
             if full_outputs:
@@ -397,7 +398,9 @@ def _solve_RK4(np.ndarray[dtype_t, ndim=1] J,
                 _debug('  Solutes')
                 MS[:max_age+1, i+1, :] = np.r_[np.zeros((1,numsol)), np.cumsum(mSn, axis=0)][:M+1:n_substeps]
                 MQ[:,i+1,:,:] = np.cumsum(MQ[:,i+1,:,:], axis=0)
-                C_Q[i,q,s] += C_old[s] * (1 - PQ[max_age, i+1, q])
+                for s in range(numsol):
+                    for q in range(numflux):
+                        C_Q[i,q,s] += alpha[i,q,s] * C_old[s] * (1 - PQ[max_age, i+1, q])
                 for s in range(numsol):
                     _debug('  SolutesBalance')
                     SoluteBalance[1:max_age,i,s] = (np.diff(MS[0:max_age,i,s], axis=0) - np.diff(MS[1:max_age+1,i+1,s], axis=0)

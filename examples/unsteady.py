@@ -25,7 +25,7 @@ N = len(data)
 # The individual timeseries can be pulled out of the dataframe
 J = data['J'].values
 Q = data['Q1'].values
-C_J = data['C_J'].values
+C_J = data['C_J'].values-2
 C_Q1 = data['C_Q1'].values
 S = data['S'].values
 # =========================
@@ -134,7 +134,8 @@ plt.step(data['datetime'], C_Q1m1, 'g', ls='--', label='mean rsas internal', lw=
 plt.step(data['datetime'], C_Q1m2, 'b', ls=':', label='mean rsas.transport', lw=2, where='post')
 plt.step(data['datetime'], C_Q1m2_raw, '0.5', ls=':', label='mean rsas.transport (obs part)', lw=2, where='post')
 plt.plot(data['datetime'], C_Q1i, 'b:o', label='inst. rsas.transport', lw=1)
-plt.plot(data['datetime'], data['C_Q1'], 'r.', label='observed', lw=2)
+#plt.plot(data['datetime'], data['C_Q1'], 'r.', label='observed', lw=2)
+plt.ylim((-2, 0))
 plt.legend(loc=0)
 plt.ylabel('Concentration [-]')
 plt.xlabel('time')

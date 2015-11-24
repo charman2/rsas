@@ -44,7 +44,7 @@ ST_init = np.zeros(N + 1)
 # Make a function that runs the model given set of parameters
 def run(params):
     # Unroll the parameters
-    S_dead, lam = params
+    S_dead, lam, C_old = params
     # Define the rSAS function
     Q_rSAS_fun_type = 'kumaraswami'
     ST_min = np.ones(N) * 0.
@@ -73,11 +73,11 @@ def err(params):
 # this list by assuming the first entry is S_dead and the second
 # is lam. You can include as many parameters here as you like, but
 # you must also change the line where they are unrolled.
-params0 = [10., -0.2]
+params0 = [10., -0.2, 0.8]
 # run the optimzer
 from scipy.optimize import fmin
 params_opt = fmin(err, params0)
-S_dead, lam = params_opt
+S_dead, lam, C_old = params_opt
 print "Optimum parameter set = ", params_opt
 # run the model for these parameters
 outputs, rSAS_fun = run(params_opt)

@@ -41,10 +41,12 @@ C_old = 0.
 # =========================
 # Parameters for the rSAS function
 # The uniform distribution extends between S_T=a and S_T=b.
-Q_rSAS_fun_type = 'uniform'
+Q_rSAS_fun_type = 'gamma'
 ST_min = np.ones(N) * 0.
-ST_max = np.ones(N) * S_0
-Q_rSAS_fun_parameters = np.c_[ST_min, ST_max]
+ST_max = np.ones(N) * np.inf
+SQ = np.ones(N) * S_0
+alpha = np.ones(N) * 0.5
+Q_rSAS_fun_parameters = np.c_[ST_min, ST_max, SQ, alpha]
 rSAS_fun_Q1 = rsas.create_function(Q_rSAS_fun_type, Q_rSAS_fun_parameters)
 # =================
 # Initial condition
