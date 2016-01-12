@@ -112,11 +112,17 @@ class _kumaraswami_rSAS(rSASFunctionClass):
         self.a = params[:,2]
         self.b = params[:,3]
     def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
-        return np.where(ST > self.ST_min, np.where(ST < self.ST_max,
-            1 - ( 1 - ((ST - self.ST_min)/(self.ST_max - self.ST_min))**self.a)**self.b, 1.), 0.)
+        return np.where(self.ST_max>=self.ST_min,
+                        np.where(ST > self.ST_min, np.where(ST < self.ST_max,
+                                 1 - ( 1 - ((ST - self.ST_min)/(self.ST_max - self.ST_min))**self.a)**self.b, 1.), 0.),
+                        np.where(ST > self.ST_min,
+                                 1 - ( 1 - ((ST - self.ST_min)/(self.ST_max - self.ST_min))**self.a)**self.b, 0.))
     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
-        return np.where(ST > self.ST_min[i], np.where(ST < self.ST_max[i],
-            1 - ( 1 - ((ST - self.ST_min[i])/(self.ST_max[i] - self.ST_min[i]))**self.a[i])**self.b[i], 1.), 0.)
+        return np.where(self.ST_max[i]>=self.ST_min[i],
+                        np.where(ST > self.ST_min[i], np.where(ST < self.ST_max[i],
+                                 1 - ( 1 - ((ST - self.ST_min[i])/(self.ST_max[i] - self.ST_min[i]))**self.a[i])**self.b[i], 1.), 0.),
+                        np.where(ST > self.ST_min[i],
+                                 1 - ( 1 - ((ST - self.ST_min[i])/(self.ST_max[i] - self.ST_min[i]))**self.a[i])**self.b[i], 0.))
 
 class _uniform_rSAS(rSASFunctionClass):
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
