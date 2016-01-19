@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 import argparse
 
-def run(inputfile, function_list, outputfile=None, alpha=None, C_old=0., n_substeps=1, save_arrays=False):
+def solve(inputfile, function_list, outputfile=None, alpha=None, C_old=0., n_substeps=1, save_arrays=False):
     # Initializes the random number generator so we always get the same result
     np.random.seed(0)
     # =====================================
@@ -99,4 +99,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.outputfile is None:
         args.outputfile = args.inputfile.name
-    run(**vars(args))
+    data, outputs = solve(**vars(args))
