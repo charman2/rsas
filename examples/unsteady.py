@@ -27,7 +27,8 @@ J = data['J'].values
 Q = data['Q1'].values
 C_J = data['C_J'].values-2
 C_Q1 = data['C_Q1'].values
-S = data['S'].values
+ST_min = data['ST_min'].values
+ST_max = data['ST_max'].values
 # =========================
 # Parameters needed by rsas
 # =========================

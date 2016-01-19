@@ -129,8 +129,12 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1,
     DEBUG=debug
     if type(J) is not np.ndarray or J.ndim!=1:
         raise TypeError('J must be a 1-D numpy array')
-    if (type(Q) is not np.ndarray) or (Q.ndim>2) or (Q.shape[0]!=len(J)):
-        raise TypeError('Q must be a 1 or 2-D numpy array with a column for each outflow\nor a list of two 1-D numpy arrays (like ''[Q1, Q2]'')\nand each must be the same size as J')
+    J = J.astype(np.float)
+    if type(Q) is not np.ndarray:
+        Q = np.array(Q).T
+    Q = Q.astype(np.float)
+    if (Q.ndim>2) or (Q.shape[0]!=len(J)):
+        raise TypeError('Q must be a 1 or 2-D numpy array with a column for each outflow\nor a list of 1-D numpy arrays (like ''[Q1, Q2]'')\nand each must be the same size as J')
     elif Q.ndim==1:
             Q=np.c_[Q]
     if ST_init is not None:
@@ -151,6 +155,7 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1,
             raise TypeError('C_J must be a 1 or 2-D numpy array with a first dimension the same length as J')
         elif C_J.ndim==1:
                 C_J=np.c_[C_J]
+        C_J=C_J.astype(np.float)
         if alpha is not None:
             if type(alpha) is not np.ndarray:
                 alpha = np.array(alpha)
