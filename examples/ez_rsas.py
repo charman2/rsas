@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 import argparse
 
-def run(inputfile, function_list, outputfile=None, alpha=None, C_old=0., n_substeps=1):
+def run(inputfile, function_list, outputfile=None, alpha=None, C_old=0., n_substeps=1, save_arrays=False):
     # Initializes the random number generator so we always get the same result
     np.random.seed(0)
     # =====================================
@@ -75,6 +75,10 @@ def run(inputfile, function_list, outputfile=None, alpha=None, C_old=0., n_subst
         data['C_Qm_'+str(i+1)] = outputs['C_Q'][:,i,0]
     if outputfile is not None:
         data.to_csv(outputfile)
+    if save_arrays:
+        for i in range(len(function_list)):
+            np.savetxt(outputfile[:-4]+'_PQ_'+str(i+1)+'.csv', outputs['PQ'][:,:,i], delimiter=",")
+            np.savetxt(outputfile[:-4]+'_ST'+'.csv', outputs['ST'], delimiter=",")
     return data, outputs
 
 if __name__ == '__main__':
@@ -91,6 +95,7 @@ if __name__ == '__main__':
     parser.add_argument('-a', '--alpha', nargs='*', type=float, help="alpha parameter controling the partitioning of the solute to each outflow. Must be the same number of alphas as rsas functions. Defaults to 1 for each outflow")
     # number of substeps
     parser.add_argument('-n', '--n_substeps', type=int, default=1, help="number of substeps required to ensure numerical accuracy. Try increasing this number to get a more accurate result")
+    parser.add_argument('-s', '--save_arrays', action='store_true', default=False, help="if set to true, save the PQ and ST matricies")
     args = parser.parse_args()
     if args.outputfile is None:
         args.outputfile = args.inputfile.name
