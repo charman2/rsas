@@ -70,10 +70,14 @@ def create_function(rSAS_type, np.ndarray[dtype_t, ndim=2] params):
             * ``Q_params[:, 1]`` = ST_max parameter (set as inf if undefined)
             * ``Q_params[:, 2]`` = scale parameter
             * ``Q_params[:, 3]`` = shape parameter
+    'lookuptable' : Lookup table of values. First value of Omega must be 0 and last must be 1.
+            * ``Q_params[:, 0]`` = S_T
+            * ``Q_params[:, 1]`` = Omega(S_T)
     """
     function_dict = {'gamma':_gamma_rSAS,
                      'uniform':_uniform_rSAS,
-                     'kumaraswami':_kumaraswami_rSAS}
+                     'kumaraswami':_kumaraswami_rSAS,
+                     'lookuptable':_lookup_rSAS}
                      #'from_steady_state_TTD':_from_steady_state_TTD_rSAS}
     return function_dict[rSAS_type](params)
 
@@ -152,16 +156,17 @@ class _gamma_rSAS(rSASFunctionClass):
         return np.where(ST>self.ST_min[i], np.where(ST<self.ST_max[i],
                 gammainc(self.a[i], self.lam[i]*(ST-self.ST_min[i]))*self.rescale[i], 1.), 0.)
 
-#class _from_steady_state_TTD_rSAS(rSASFunctionClass):
-#    def __init__(self, np.ndarray[dtype_t, ndim=2] params):
-#        params = params.copy()
-#        self.Q0 = params[0,0]
-#        self.CDF = params[:,0]
-#        self.CDF[0] = 0.
-#        self.ST = rsas._util.steady_state_ST_from_TTD_1out(self.Q0, self.CDF, dt=1)
-#        self.rSAS_unsorted = interp1d(self.ST, self.CDF, bounds_error=False, fill_value=1., assume_sorted=False)
-#        self.rSAS_sorted = interp1d(self.ST, self.CDF, bounds_error=False, fill_value=1., assume_sorted=True)
-#    def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
-#        return self.rSAS_unsorted(ST)
-#    def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
-#        return self.rSAS_sorted(ST)
+class _lookup_rSAS(rSASFunctionClass):
+    def __init__(self, np.ndarray[dtype_t, ndim=2] params):
+        params = params.copy()
+        self.S_T = params[:,0]
+        self.Omega = params[:,1]
+        self.ST_min = self.S_T[0]
+        self.ST_max = self.S_T[-1]
+        if not (self.Omega[0]==0 and self.Omega[-1]==1):
+            raise ValueError('The first and last value of S_T must correspond with probability 0 and 1 respectively')
+        self.interp1d = interp1d(self.S_T, self.Omega, kind='linear', copy=False, bounds_error=True, assume_sorted=True)
+    def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
+        return self.interp1d(np.where(ST < self.ST_max, np.where(ST > self.ST_min,  ST, 0.), 1.))
+    def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
+        return self.interp1d(np.where(ST < self.ST_max, np.where(ST > self.ST_min, ST, 0.), 1.))
