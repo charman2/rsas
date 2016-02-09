@@ -18,6 +18,7 @@ ctypedef np.int_t inttype_t
 ctypedef np.long_t longtype_t
 cdef inline np.float64_t float64_max(np.float64_t a, np.float64_t b): return a if a >= b else b
 cdef inline np.float64_t float64_min(np.float64_t a, np.float64_t b): return a if a <= b else b
+import scipy.stats
 from scipy.special import gamma as gamma_function
 from scipy.special import gammainc
 from scipy.special import erfc
@@ -77,9 +78,15 @@ def create_function(rSAS_type, np.ndarray[dtype_t, ndim=2] params):
     function_dict = {'gamma':_gamma_rSAS,
                      'uniform':_uniform_rSAS,
                      'kumaraswami':_kumaraswami_rSAS,
+                     'invgauss':_invgauss_rSAS,
                      'lookuptable':_lookup_rSAS}
-                     #'from_steady_state_TTD':_from_steady_state_TTD_rSAS}
-    return function_dict[rSAS_type](params)
+    if rSAS_type in function_dict.keys():
+        return function_dict[rSAS_type](params)
+    elif hasattr(scipy.stats, rSAS_type):
+        return _stats_rSAS(rSAS_type, params)
+    else:
+        raise ValueError('No such rSAS function type')
+
 
 class rSASFunctionClass:
     """Base class for constructing rSAS functions
@@ -138,6 +145,34 @@ class _uniform_rSAS(rSASFunctionClass):
         return np.where(ST < self.ST_max, np.where(ST > self.ST_min,  self.lam * (ST - self.ST_min), 0.), 1.)
     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
         return np.where(ST < self.ST_max[i], np.where(ST > self.ST_min[i], self.lam[i] * (ST - self.ST_min[i]), 0.), 1.)
+
+class _invgauss_rSAS(rSASFunctionClass):
+    def __init__(self, np.ndarray[dtype_t, ndim=2] params):
+        params = params.copy()
+        self.loc = params[:,0]
+        self.scale = params[:,1]
+        self.mu = params[:,2:]
+    def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
+        x = (ST - self.loc[i]) / self.scale[i]
+        return (erfc((-x + self.mu[i])/(np.sqrt(2*x)*self.mu[i]))
+                + np.exp(2/self.mu[i])*erfc((x + self.mu[i])/(np.sqrt(2*x)*self.mu[i])))/2.
+
+class _stats_rSAS(rSASFunctionClass):
+    def __init__(self, str rSAS_type, np.ndarray[dtype_t, ndim=2] params):
+        params = params.copy()
+        self.dist_class = getattr(scipy.stats, rSAS_type)
+        self.loc = params[:,0]
+        self.scale = params[:,1]
+        N = params.shape[0]
+        if params.shape[1]>2:
+            self.shape = params[:,2:]
+            self.dist = [self.dist_class(*self.shape[i], loc=self.loc[i], scale=self.scale[i]) for i in range(N)]
+        else:
+            self.dist = [self.dist_class(loc=self.loc[i], scale=self.scale[i]) for i in range(N)]
+    #def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
+    #    return [dist.cdf(STi) for dist, STi in zip(self.dist, ST)]
+    def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
+        return [self.dist[i].cdf(STi) for STi in ST]
 
 class _gamma_rSAS(rSASFunctionClass):
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
