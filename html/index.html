@@ -59,6 +59,11 @@ codes use pandas to wrangle the timeseries data. These must all be installed.
 The Anaconda package (<a class="reference external" href="https://store.continuum.io/cshop/anaconda/">https://store.continuum.io/cshop/anaconda/</a>) contains all
 the needed pieces, and is an easy way to get started. Install it before you
 install rsas.</p>
+<p>Parts of rsas must be compiled with a C compiler. This generally happens seamlessly
+on OSX and *nix if you follow the steps below. On Windows you may need to first
+install Microsoft Visual C++ Compiler for Python 2.7 BEFORE you install Anaconda
+Python.</p>
+<p><a class="reference external" href="https://www.microsoft.com/en-us/download/details.aspx?id=44266">https://www.microsoft.com/en-us/download/details.aspx?id=44266</a></p>
 </div>
 <div class="section" id="getting-rsas">
 <h2>Getting rsas<a class="headerlink" href="#getting-rsas" title="Permalink to this headline">¶</a></h2>
@@ -76,6 +81,8 @@ and run:</p>
 <p>&gt; python setup.py install</p>
 <p>It may take a few minutes. You may get warning messages, all of which can be ignored.
 Error messages cannot though, and will prevent the compilation from completion.</p>
+<p>If you are getting strange messages about <cite>vcvarsall.bat</cite> you may need to install
+the MS Visual C++ compiler (see above) and then re-install Anaconda Python.</p>
 <p>Once the code has compiled successfully you don&#8217;t need to do it again
 unless this code is changed.</p>
 </div>
@@ -527,9 +534,10 @@ run right out of the box.</p>
 <p>Harman, C. J. (2014), Time-variable transit time distributions and transport:
 Theory and application to storage-dependent transport of chloride in a watershed,
 Water Resour. Res., 51, doi:10.1002/2014WR015707.</p>
-<div class="section" id="documentation-for-the-code">
-<h2>Documentation for the code<a class="headerlink" href="#documentation-for-the-code" title="Permalink to this headline">¶</a></h2>
-<span class="target" id="module-rsas"></span><dl class="function">
+<p>More information may be available at: <a class="reference external" href="http://landscapehydrology.com/rsas/">http://landscapehydrology.com/rsas/</a></p>
+<div class="section" id="module-rsas">
+<span id="documentation-for-the-code"></span><h2>Documentation for the code<a class="headerlink" href="#module-rsas" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
 <dt id="rsas.solve">
 <code class="descclassname">rsas.</code><code class="descname">solve</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#rsas.solve" title="Permalink to this definition">¶</a></dt>
 <dd><p>Solve the rSAS model for given fluxes</p>
@@ -752,7 +760,7 @@ timestep</dd>
 </ul>
 </li>
 <li><a class="reference internal" href="#further-reading">Further reading</a><ul>
-<li><a class="reference internal" href="#documentation-for-the-code">Documentation for the code</a></li>
+<li><a class="reference internal" href="#module-rsas">Documentation for the code</a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
