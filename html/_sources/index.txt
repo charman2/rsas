@@ -42,8 +42,7 @@ Getting rsas
 
 rsas is available from github: https://github.com/charman2/rsas
 
-The repository is currently private, so only collaborators can access it. Please
-do not share the source code before I release it.
+The code is still very much in beta. USE AT YOUR OWN RISK. I make no assurances.
 
 The code can be downloaded zipped, but a git clone is recommended so updates
 can be provided as they are developed.
