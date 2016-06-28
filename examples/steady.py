@@ -14,8 +14,6 @@ import rsas
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-# Initializes the random number generator so we always get the same result
-np.random.seed(0)
 # =====================================
 # Generate the input timeseries
 # =====================================

@@ -23,6 +23,7 @@ data = pd.read_csv('Q1.csv', index_col=0, parse_dates=[1])
 # length of the dataset
 N = len(data)
 # The individual timeseries can be pulled out of the dataframe
+S = data['S'].values
 J = data['J'].values
 Q = data['Q1'].values
 C_J = data['C_J'].values-2
