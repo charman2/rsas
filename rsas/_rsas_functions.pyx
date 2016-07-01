@@ -20,7 +20,7 @@ cdef inline np.float64_t float64_max(np.float64_t a, np.float64_t b): return a i
 cdef inline np.float64_t float64_min(np.float64_t a, np.float64_t b): return a if a <= b else b
 import scipy.stats
 from scipy.special import gamma as gamma_function
-from scipy.special import gammainc
+from scipy.special import gammainc, gammaincinv
 from scipy.special import erfc
 from scipy.interpolate import interp1d
 from scipy.optimize import fmin, minimize_scalar, fsolve
@@ -190,6 +190,9 @@ class _gamma_rSAS(rSASFunctionClass):
     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
         return np.where(ST>self.ST_min[i], np.where(ST<self.ST_max[i],
                 gammainc(self.a[i], self.lam[i]*(ST-self.ST_min[i]))*self.rescale[i], 1.), 0.)
+    def invcdf_i(self, np.ndarray[dtype_t, ndim=1] P, int i):
+        return np.where(P>0, np.where(P<1, gammaincinv(self.a[i], P/self.rescale[i]),
+                np.inf), np.nan)/self.lam + self.ST_min[i]
 
 class _lookup_rSAS(rSASFunctionClass):
     def __init__(self, np.ndarray[dtype_t, ndim=2] params):
