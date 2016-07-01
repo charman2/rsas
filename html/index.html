@@ -157,8 +157,10 @@ run right out of the box.</p>
 <span class="c"># Run the model - second method</span>
 <span class="c"># =============</span>
 <span class="c"># Run it</span>
+<span class="k">print</span> <span class="s">&quot;start this&quot;</span>
 <span class="n">outputs</span> <span class="o">=</span> <span class="n">rsas</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">J</span><span class="p">,</span> <span class="n">Q</span><span class="p">,</span> <span class="p">[</span><span class="n">rSAS_fun_Q1</span><span class="p">],</span> <span class="n">ST_init</span><span class="o">=</span><span class="n">ST_init</span><span class="p">,</span>
                      <span class="n">mode</span><span class="o">=</span><span class="s">&#39;RK4&#39;</span><span class="p">,</span> <span class="n">dt</span> <span class="o">=</span> <span class="mf">1.</span><span class="p">,</span> <span class="n">n_substeps</span><span class="o">=</span><span class="n">n_substeps</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+<span class="k">print</span> <span class="s">&quot;done this&quot;</span>
 <span class="c"># Age-ranked storage</span>
 <span class="c"># ROWS of ST are T - ages</span>
 <span class="c"># COLUMNS of ST are t - times</span>
@@ -226,6 +228,7 @@ run right out of the box.</p>
 <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s">&#39;Concentration [-]&#39;</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s">&#39;time&#39;</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s">&#39;Outflow concentration&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">draw</span><span class="p">()</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
@@ -704,7 +707,7 @@ These all take one parameter set (row) per timestep:</p>
 <dd>The CDF of the backwards transit time distribution P_Q1(T,t)</dd>
 <dt>C_in <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 1D array, length N.</span></dt>
 <dd>Timestep-averaged inflow concentration.</dd>
-<dt>C_old <span class="classifier-delimiter">:</span> <span class="classifier">numpy float64 1D array, length N.</span></dt>
+<dt>C_old <span class="classifier-delimiter">:</span> <span class="classifier">float</span></dt>
 <dd>Concentration to be assumed for portion of outflows older than initial
 timestep</dd>
 </dl>
