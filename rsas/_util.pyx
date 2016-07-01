@@ -19,7 +19,7 @@ import time
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def transport(np.ndarray[dtype_t, ndim=2] PQ, np.ndarray[dtype_t, ndim=1] C_in, float C_old):
+def transport(np.ndarray[dtype_t, ndim=2] PQ, np.ndarray[dtype_t, ndim=1] C_in, dtype_t C_old):
     """Apply a time-varying transit time distribution to an input concentration timseries
 
     Args:
@@ -27,7 +27,7 @@ def transport(np.ndarray[dtype_t, ndim=2] PQ, np.ndarray[dtype_t, ndim=1] C_in, 
             The CDF of the backwards transit time distribution P_Q1(T,t)
         C_in : numpy float64 1D array, length N.
             Timestep-averaged inflow concentration.
-        C_old : numpy float64 1D array, length N.
+        C_old : float
             Concentration to be assumed for portion of outflows older than initial
             timestep
 
