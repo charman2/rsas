@@ -9,15 +9,8 @@
 """
 
 from __future__ import division
-import cython
 import numpy as np
-cimport numpy as np
 dtype = np.float64
-ctypedef np.float64_t dtype_t
-ctypedef np.int_t inttype_t
-ctypedef np.long_t longtype_t
-cdef inline np.float64_t float64_max(np.float64_t a, np.float64_t b): return a if a >= b else b
-cdef inline np.float64_t float64_min(np.float64_t a, np.float64_t b): return a if a <= b else b
 import scipy.stats
 from scipy.special import gamma as gamma_function
 from scipy.special import gammainc, gammaincinv
@@ -36,7 +29,7 @@ def _verbose(statement):
     if debug:
         print statement
 
-def create_function(rSAS_type, np.ndarray[dtype_t, ndim=2] params):
+def create_function(rSAS_type, params):
     """Initialize an rSAS function
 
     Args:
@@ -93,7 +86,7 @@ class rSASFunctionClass:
 
     All rSAS functions must override the following methods:
 
-    __init__(self, np.ndarray[dtype_t, ndim=2] params):
+    __init__(self, params):
         Initializes the rSAS function for a timeseries of parameters params.
         Usually each row of params corresponds to a timestep and each column is
         a parameter, but this is not strictly required as long as cdf_all and
@@ -108,27 +101,27 @@ class rSASFunctionClass:
         can be of any size). Each value of ST is evaluated using the
         parameter values on row i.
     """
-    def __init__(self, np.ndarray[dtype_t, ndim=2] params):
+    def __init__(self, params):
         raise NotImplementedError('__init__ not implemented in derived rSASFunctionClass')
-    def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
+    def cdf_all(self, ST):
         raise NotImplementedError('cdf_all not implemented in derived rSASFunctionClass')
-    def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
+    def cdf_i(self, ST, i):
         raise NotImplementedError('cdf_i not implemented in derived rSASFunctionClass')
 
 class _kumaraswami_rSAS(rSASFunctionClass):
-    def __init__(self, np.ndarray[dtype_t, ndim=2] params):
+    def __init__(self, params):
         params = params.copy()
         self.ST_min = params[:,0]
         self.ST_max = params[:,1]
         self.a = params[:,2]
         self.b = params[:,3]
-    def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
+    def cdf_all(self, ST):
         return np.where(self.ST_max>=self.ST_min,
                         np.where(ST > self.ST_min, np.where(ST < self.ST_max,
                                  1 - ( 1 - ((ST - self.ST_min)/(self.ST_max - self.ST_min))**self.a)**self.b, 1.), 0.),
                         np.where(ST > self.ST_min,
                                  1 - ( 1 - ((ST - self.ST_min)/(self.ST_max - self.ST_min))**self.a)**self.b, 0.))
-    def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
+    def cdf_i(self, ST, i):
         return np.where(self.ST_max[i]>=self.ST_min[i],
                         np.where(ST > self.ST_min[i], np.where(ST < self.ST_max[i],
                                  1 - ( 1 - ((ST - self.ST_min[i])/(self.ST_max[i] - self.ST_min[i]))**self.a[i])**self.b[i], 1.), 0.),
@@ -136,29 +129,31 @@ class _kumaraswami_rSAS(rSASFunctionClass):
                                  1 - ( 1 - ((ST - self.ST_min[i])/(self.ST_max[i] - self.ST_min[i]))**self.a[i])**self.b[i], 0.))
 
 class _uniform_rSAS(rSASFunctionClass):
-    def __init__(self, np.ndarray[dtype_t, ndim=2] params):
+    def __init__(self, params):
         params = params.copy()
         self.ST_min = params[:,0]
         self.ST_max = params[:,1]
         self.lam = 1.0/(self.ST_max-self.ST_min)
-    def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
+    def cdf_all(self, ST):
         return np.where(ST < self.ST_max, np.where(ST > self.ST_min,  self.lam * (ST - self.ST_min), 0.), 1.)
-    def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
+    def cdf_i(self, ST, i):
         return np.where(ST < self.ST_max[i], np.where(ST > self.ST_min[i], self.lam[i] * (ST - self.ST_min[i]), 0.), 1.)
+    def invcdf_i(self, P, i):
+        return np.where(P < 1, np.where(P > 0, P, 0.), 1.)/self.lam[i] + self.ST_min[i]
 
 class _invgauss_rSAS(rSASFunctionClass):
-    def __init__(self, np.ndarray[dtype_t, ndim=2] params):
+    def __init__(self, params):
         params = params.copy()
         self.loc = params[:,0]
         self.scale = params[:,1]
         self.mu = params[:,2:]
-    def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
+    def cdf_i(self, ST, i):
         x = (ST - self.loc[i]) / self.scale[i]
         return (erfc((-x + self.mu[i])/(np.sqrt(2*x)*self.mu[i]))
                 + np.exp(2/self.mu[i])*erfc((x + self.mu[i])/(np.sqrt(2*x)*self.mu[i])))/2.
 
 class _stats_rSAS(rSASFunctionClass):
-    def __init__(self, str rSAS_type, np.ndarray[dtype_t, ndim=2] params):
+    def __init__(self, rSAS_type, params):
         params = params.copy()
         self.dist_class = getattr(scipy.stats, rSAS_type)
         self.loc = params[:,0]
@@ -169,13 +164,13 @@ class _stats_rSAS(rSASFunctionClass):
             self.dist = [self.dist_class(*self.shape[i], loc=self.loc[i], scale=self.scale[i]) for i in range(N)]
         else:
             self.dist = [self.dist_class(loc=self.loc[i], scale=self.scale[i]) for i in range(N)]
-    #def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
+    #def cdf_all(self, ST):
     #    return [dist.cdf(STi) for dist, STi in zip(self.dist, ST)]
-    def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
+    def cdf_i(self, ST, i):
         return [self.dist[i].cdf(STi) for STi in ST]
 
 class _gamma_rSAS(rSASFunctionClass):
-    def __init__(self, np.ndarray[dtype_t, ndim=2] params):
+    def __init__(self, params):
         params = params.copy()
         self.ST_min = params[:,0]
         self.ST_max = params[:,1]
@@ -184,18 +179,18 @@ class _gamma_rSAS(rSASFunctionClass):
         self.lam = 1.0/self.scale
         self.lam_on_gam = self.lam**self.a / gamma_function(self.a)
         self.rescale = np.where(np.isfinite(self.ST_max), 1/(gammainc(self.a, self.lam*(self.ST_max-self.ST_min))), 1.)
-    def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
+    def cdf_all(self, ST):
         return np.where(ST>self.ST_min, np.where(ST<self.ST_max,
                 gammainc(self.a, self.lam*(ST-self.ST_min))*self.rescale, 1.), 0.)
-    def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
+    def cdf_i(self, ST, i):
         return np.where(ST>self.ST_min[i], np.where(ST<self.ST_max[i],
                 gammainc(self.a[i], self.lam[i]*(ST-self.ST_min[i]))*self.rescale[i], 1.), 0.)
-    def invcdf_i(self, np.ndarray[dtype_t, ndim=1] P, int i):
+    def invcdf_i(self, P, i):
         return np.where(P>0, np.where(P<1, gammaincinv(self.a[i], P/self.rescale[i]),
-                np.inf), np.nan)/self.lam + self.ST_min[i]
+                np.inf), np.nan)/self.lam[i] + self.ST_min[i]
 
 class _lookup_rSAS(rSASFunctionClass):
-    def __init__(self, np.ndarray[dtype_t, ndim=2] params):
+    def __init__(self, params):
         params = params.copy()
         self.S_T = params[:,0]
         self.Omega = params[:,1]
@@ -204,7 +199,7 @@ class _lookup_rSAS(rSASFunctionClass):
         if not (self.Omega[0]==0 and self.Omega[-1]==1):
             raise ValueError('The first and last value of S_T must correspond with probability 0 and 1 respectively')
         self.interp1d = interp1d(self.S_T, self.Omega, kind='linear', copy=False, bounds_error=True, assume_sorted=True)
-    def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
+    def cdf_all(self, ST):
         return self.interp1d(np.where(ST < self.ST_max, np.where(ST > self.ST_min,  ST, 0.), 1.))
-    def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
+    def cdf_i(self, ST, i):
         return self.interp1d(np.where(ST < self.ST_max, np.where(ST > self.ST_min, ST, 0.), 1.))

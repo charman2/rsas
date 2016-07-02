@@ -1,25 +1,7 @@
-import cython
 import numpy as np
-cimport numpy as np
-from warnings import warn
 dtype = np.float64
-ctypedef np.float64_t dtype_t
-ctypedef np.int_t inttype_t
-ctypedef np.long_t longtype_t
-cdef inline np.float64_t float64_max(np.float64_t a, np.float64_t b): return a if a >= b else b
-cdef inline np.float64_t float64_min(np.float64_t a, np.float64_t b): return a if a <= b else b
-from _rsas_functions import rSASFunctionClass
-from scipy.special import gamma as gamma_function
-from scipy.special import gammainc
-from scipy.special import erfc
-from scipy.interpolate import interp1d
-from scipy.optimize import fmin, minimize_scalar, fsolve
-import time
 
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-def transport(np.ndarray[dtype_t, ndim=2] PQ, np.ndarray[dtype_t, ndim=1] C_in, dtype_t C_old):
+def transport(PQ, C_in, C_old):
     """Apply a time-varying transit time distribution to an input concentration timseries
 
     Args:
@@ -39,9 +21,9 @@ def transport(np.ndarray[dtype_t, ndim=2] PQ, np.ndarray[dtype_t, ndim=1] C_in, 
         observed_fraction : numpy float64 1D array, length N.
             Fraction of outflow older than the first timestep
     """
-    cdef int N, t, T
-    cdef np.ndarray[dtype_t, ndim=2] pQe
-    cdef np.ndarray[dtype_t, ndim=1] C_mod_raw, observed_fraction
+    #cdef int N, t, T
+    #cdef np.ndarray[dtype_t, ndim=2] pQe
+    #cdef np.ndarray[dtype_t, ndim=1] C_mod_raw, observed_fraction
     N = len(C_in)
     C_mod_raw = np.zeros(N, dtype=np.float64)
     pQe = np.diff(PQ[:,1:],axis=0)

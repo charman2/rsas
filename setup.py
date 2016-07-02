@@ -5,14 +5,14 @@ Created on Tue Jan 14 17:57:18 2014
 @author: ciaran
 """
 
-try:
-        from setuptools import setup
-        from setuptools import Extension
-except ImportError:
-        from distutils.core import setup
-        from distutils.extension import Extension
-from Cython.Distutils import build_ext
-from Cython.Build import cythonize
+#try:
+        #from setuptools import setup
+        #from setuptools import Extension
+#except ImportError:
+        #from distutils.core import setup
+        #from distutils.extension import Extension
+from numpy.distutils.core import setup
+from numpy.distutils.core import Extension
 import numpy
 
 config = {
@@ -22,23 +22,14 @@ config = {
     'download_url': '',
     'author_email': 'charman1@jhu.edu',
     'version': '0.6',
-    'install_requires': ['nose', 'numpy', 'scipy', 'cython'],
+    'install_requires': ['numpy', 'scipy'],
     'packages' : ['rsas'],
     'scripts': [],
     'name': 'rsas',
-    'ext_modules': [Extension('_util', ['./rsas/_util.pyx'],
+    'ext_modules': [Extension(name='f_solve_RK4', sources=['./rsas/_solve.f90'],
                               include_dirs=[numpy.get_include()],
-                              libraries=None),
-                    Extension(name='f_solve_RK4', sources=['./rsas/_rsas.f90'],
-                              include_dirs=[numpy.get_include()],
-                              libraries=None),
-                    Extension('_rsas_functions', ['./rsas/_rsas_functions.pyx'],
-                              include_dirs=[numpy.get_include()],
-                              libraries=None),
-                    Extension('_rsas', ['./rsas/_rsas.pyx'],
-                              include_dirs=[numpy.get_include()],
+                              extra_f90_compile_args = ["-fcheck=all"],
                               libraries=None)],
-    'cmdclass' : { 'build_ext': build_ext }
 }
 
 setup(**config)

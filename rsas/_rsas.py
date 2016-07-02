@@ -9,25 +9,10 @@
 """
 
 from __future__ import division
-import cython
 import numpy as np
-cimport numpy as np
 from warnings import warn
 dtype = np.float64
-ctypedef np.float64_t dtype_t
-ctypedef np.int_t inttype_t
-ctypedef np.long_t longtype_t
-cdef inline np.float64_t float64_max(np.float64_t a, np.float64_t b): return a if a >= b else b
-cdef inline np.float64_t float64_min(np.float64_t a, np.float64_t b): return a if a <= b else b
-from _rsas_functions import rSASFunctionClass
-from scipy.special import gamma as gamma_function
-from scipy.special import gammainc
-from scipy.special import erfc
-from scipy.interpolate import interp1d
-from scipy.optimize import fmin, minimize_scalar, fsolve
-import time
 from f_solve_RK4 import f_solve_rk4
-#import rsas._util
 
 # for debugging
 DEBUG = False
@@ -48,10 +33,11 @@ def _verbose(statement):
 
 def make_lookup(rSAS_fun, N, P_list):
     numflux = len(rSAS_fun)
-    rSAS_lookup = np.zeros((P_list,N,numflux))
+    rSAS_lookup = np.zeros((len(P_list),N,numflux))
     for i in range(N):
         for q in range(numflux):
-            rSAS_lookup[:,i,q] = rSAS_fun.invcdf_i(P_list,i)
+            rSAS_lookup[:,i,q] = rSAS_fun[q].invcdf_i(P_list,i)
+            rSAS_lookup[0,i,q] = rSAS_fun[q].ST_min[i]
     return rSAS_lookup
 
 def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_list=None,
@@ -173,7 +159,7 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
     else:
         ST_init = np.zeros(timeseries_length+1)
     max_age = len(ST_init)-1
-    if not type(rSAS_fun) is list:
+    if type(rSAS_fun) is not list:
         rSAS_fun = [rSAS_fun]
     if numflux!=len(rSAS_fun):
         raise TypeError('Each rSAS function must have a corresponding outflow in Q. Numbers don''t match')
@@ -206,51 +192,57 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
         elif C_J.ndim==1:
                 C_J=np.c_[C_J]
         C_J=C_J.astype(np.float)
-        numsol = C_J.shape[1]
-        if alpha is not None:
-            if type(alpha) is not np.ndarray:
-                alpha = np.array(alpha, dtype=dtype)
-            if alpha.ndim==2:
-                alpha = np.tile(alpha,(timeseries_length,1,1))
-            if (alpha.shape[2]!=numsol) and (alpha.shape[1]!=numflux):
-                raise TypeError("alpha array dimensions don't match other inputs")
-            alpha = alpha.astype(dtype)
-        else:
-            alpha = np.ones((timeseries_length, numflux, numsol))
-        if k1 is not None:
-            if type(k1) is not np.ndarray:
-                k1 = np.array(k1, dtype=dtype)
-            if k1.ndim==1:
-                k1 = np.tile(k1,(timeseries_length,1))
-            if (k1.shape[1]!=numsol) and (k1.shape[0]!=timeseries_length):
-                raise TypeError("k1 array dimensions don't match other inputs")
-            k1 = k1.astype(dtype)
-        else:
-            k1 = np.zeros((timeseries_length, numsol))
-        if C_eq is not None:
-            if type(C_eq) is not np.ndarray:
-                C_eq = np.array(C_eq, dtype=dtype)
-            if C_eq.ndim==1:
-                C_eq = np.tile(C_eq,(timeseries_length,1))
-            if (C_eq.shape[1]!=numsol) and (C_eq.shape[0]!=timeseries_length):
-                raise TypeError("C_eq array dimensions don't match other inputs")
-            C_eq = C_eq.astype(dtype)
-        else:
-            C_eq = np.zeros((timeseries_length, numsol))
-        if C_old is not None:
-            if type(C_old) is not np.ndarray:
-                C_old = np.array(C_old, dtype=dtype)
-            if len(C_old)!=numsol:
-                raise TypeError('C_old must have the same number of entries as C_J has columns')
-            C_old = C_old.astype(dtype)
-        if CS_init is not None:
-            if type(CS_init) is not np.ndarray:
-                CS_init = np.array(CS_init, dtype=dtype)
-            if CS_init.ndim==1:
-                CS_init = np.tile(CS_init,(max_age-1,1))
-            if (CS_init.shape[1]!=numsol) and (CS_init.shape[0]!=max_age):
-                raise TypeError("CS_init array dimensions don't match other inputs")
-            CS_init = CS_init.astype(dtype)
+    else:
+        C_J = np.zeros((timeseries_length, 1))
+    numsol = C_J.shape[1]
+    if alpha is not None:
+        if type(alpha) is not np.ndarray:
+            alpha = np.array(alpha, dtype=dtype)
+        if alpha.ndim==2:
+            alpha = np.tile(alpha,(timeseries_length,1,1))
+        if (alpha.shape[2]!=numsol) and (alpha.shape[1]!=numflux):
+            raise TypeError("alpha array dimensions don't match other inputs")
+        alpha = alpha.astype(dtype)
+    else:
+        alpha = np.ones((timeseries_length, numflux, numsol))
+    if k1 is not None:
+        if type(k1) is not np.ndarray:
+            k1 = np.array(k1, dtype=dtype)
+        if k1.ndim==1 and len(k1)==numsol:
+            k1 = np.tile(k1,(timeseries_length,1))
+        if (k1.shape[1]!=numsol) and (k1.shape[0]!=timeseries_length):
+            raise TypeError("k1 array dimensions don't match other inputs")
+        k1 = k1.astype(dtype)
+    else:
+        k1 = np.zeros((timeseries_length, numsol))
+    if C_eq is not None:
+        if type(C_eq) is not np.ndarray:
+            C_eq = np.array(C_eq, dtype=dtype)
+        if C_eq.ndim==1 and len(C_eq)==numsol:
+            C_eq = np.tile(C_eq,(timeseries_length,1))
+        if (C_eq.shape[1]!=numsol) and (C_eq.shape[0]!=timeseries_length):
+            raise TypeError("C_eq array dimensions don't match other inputs")
+        C_eq = C_eq.astype(dtype)
+    else:
+        C_eq = np.zeros((timeseries_length, numsol))
+    if C_old is not None:
+        if type(C_old) is not np.ndarray:
+            C_old = np.array(C_old, dtype=dtype)
+        if len(C_old)!=numsol:
+            raise TypeError('C_old must have the same number of entries as C_J has columns')
+        C_old = C_old.astype(dtype)
+    else:
+        C_old = np.zeros(numsol)
+    if CS_init is not None:
+        if type(CS_init) is not np.ndarray:
+            CS_init = np.array(CS_init, dtype=dtype)
+        if CS_init.ndim==1:
+            CS_init = np.tile(CS_init,(max_age-1,1))
+        if (CS_init.shape[1]!=numsol) and (CS_init.shape[0]!=max_age):
+            raise TypeError("CS_init array dimensions don't match other inputs")
+        CS_init = CS_init.astype(dtype)
+    else:
+        CS_init = np.zeros((max_age, numflux))
     if dt is not None:
         dt = np.float64(dt)
     if n_substeps is not None:
@@ -270,10 +262,21 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
         #                    dt=dt, n_substeps=n_substeps,
         #                    full_outputs=full_outputs,
         #                    CS_init=CS_init, C_J=C_J, alpha=alpha, k1=k1, C_eq=C_eq, C_old=C_old)
-        ST, PQ, WaterBalance, MS, MQ, MR, C_Q, SoluteBalance = f_solve_rk4(
+        var=        [J, Q, rSAS_lookup, P_list, ST_init]
+        var=        [CS_init, C_J, alpha, k1, C_eq, C_old]
+        print [n_substeps, numflux, numsol, max_age, timeseries_length,  nP_list]
+        for v in var:
+            print v
+        from time import clock
+        starttime = clock()
+        fresult = f_solve_rk4(
                 J, Q, rSAS_lookup, P_list, ST_init, dt, 
+                verbose, debug, full_outputs,
                 CS_init, C_J, alpha, k1, C_eq, C_old, 
                 n_substeps, numflux, numsol, max_age, timeseries_length,  nP_list)
+        _verbose('... done')
+        print clock()-starttime
+        ST, PQ, WaterBalance, MS, MQ, MR, C_Q, SoluteBalance = fresult
     else:
         raise TypeError('Invalid solution mode.')
     
