@@ -131,6 +131,9 @@
       enddo
       call f_verbose(verbose,'...Starting main loop...')
       do i=0,timeseries_length-1
+        pQs(:, :) = 0.
+        mQs(:, :, :) = 0.
+        mRs(:, :) = 0.
         do k=0,n_substeps-1
           if (debug) then
             write (debugstring,*) i, ' ', k
@@ -182,25 +185,25 @@
           enddo
           if (full_outputs) then
             do iq=0,numflux-1
-              pQs(0, iq) = pQs(0, iq) + sum(pQn(0:k, iq))/ &
-                   n_substeps
-              pQs(1:max_age-1, iq) = pQs(1:max_age-1, iq) + sum( &
-                   reshape(pQn(k+1:M-n_substeps+k, iq),[max_age-1,&
-                   n_substeps]))/ n_substeps
+              pQs(0, iq) = pQs(0, iq) &
+                           + sum(pQn(0:k, iq))/n_substeps
+              pQs(1:max_age-1, iq) = pQs(1:max_age-1, iq) &
+                   + sum(reshape(pQn(k+1:M-n_substeps+k, iq),&
+                                 [n_substeps,max_age-1]),1)/n_substeps
               do s=0,numsol-1
-                mQs(0, iq, s) = mQs(0, iq, s) + sum(mQn(0:k, iq&
-                   , s))/n_substeps
+                mQs(0, iq, s) = mQs(0, iq, s) &
+                           + sum(mQn(0:k, iq, s))/n_substeps
                 mQs(1:max_age-1, iq, s) = mQs(1:max_age-1, iq, s)&
-                   + sum(reshape(mQn(k+1:M-n_substeps+k, iq, s), &
-                   [max_age-1, n_substeps]))/n_substeps
+                           + sum(reshape(mQn(k+1:M-n_substeps+k, iq, s), &
+                                 [n_substeps,max_age-1]),1)/n_substeps
               enddo
             enddo
             do s=0,numsol-1
-              mRs(0, s) = mRs(0, s) + sum(mRn(0:k, s))/ &
-                   n_substeps
-              mRs(1:max_age-1, s) = mRs(1:max_age-1, s) + sum( &
-                   reshape(mRn(k+1:M-n_substeps+k, s), [max_age-1,&
-                   n_substeps]))/ n_substeps
+              mRs(0, s) = mRs(0, s) &
+                           + sum(mRn(0:k, s))/n_substeps
+              mRs(1:max_age-1, s) = mRs(1:max_age-1, s) &
+                           + sum(reshape(mRn(k+1:M-n_substeps+k, s), &
+                                 [n_substeps,max_age-1]),1)/n_substeps
             enddo
           endif
         enddo
