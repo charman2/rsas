@@ -137,7 +137,7 @@
         do k=0,n_substeps-1
           if (debug) then
             write (debugstring,*) i, ' ', k
-            print*, debugstring
+!            print*, debugstring
           endif
           sTp(1:M-1) = sTn(0:M-2)
           sTp(0) = 0.
@@ -146,27 +146,32 @@
           call get_flux(i, sTp, STt_cum, pQ1, PQt_cum, J, Q, rSAS_lookup, &
                  P_list, mSp, mQ1, mR1, alpha, k1, C_eq, n_substeps, &
                  numflux, numsol, max_age, timeseries_length, nP_list)
+!          print*, mQ1, 'mQ1'
           call new_state(i, h/2, sTp, sTt, pQ1, J, Q, mSp, mSt, mQ1, &
                  mR1, C_J, n_substeps, numflux, numsol, max_age, &
                  timeseries_length, nP_list)
           call get_flux(i, sTt, STt_cum, pQ2, PQt_cum, J, Q, rSAS_lookup, &
                  P_list, mSt, mQ2, mR2, alpha, k1, C_eq, n_substeps, &
                  numflux, numsol, max_age, timeseries_length, nP_list)
+!          print*, mQ2, 'mQ2'
           call new_state(i, h/2, sTp, sTt, pQ2, J, Q, mSp, mSt, mQ2, &
                  mR2, C_J, n_substeps, numflux, numsol, max_age, &
                  timeseries_length, nP_list)
           call get_flux(i, sTt, STt_cum, pQ3, PQt_cum, J, Q, rSAS_lookup, &
                  P_list, mSt, mQ3, mR3, alpha, k1, C_eq, n_substeps, &
                  numflux, numsol, max_age, timeseries_length, nP_list)
+!          print*, mQ3, 'mQ3'
           call new_state(i, h, sTp, sTt, pQ3, J, Q, mSp, mSt, mQ3, mR3&
                  , C_J, n_substeps, numflux, numsol, max_age, &
                  timeseries_length, nP_list)
           call get_flux(i, sTt, STt_cum, pQ4, PQt_cum, J, Q, rSAS_lookup, &
                  P_list, mSt, mQ4, mR4, alpha, k1, C_eq, n_substeps, &
                  numflux, numsol, max_age, timeseries_length, nP_list)
+!          print*, mQ4, 'mQ4'
           pQn = (pQ1 + 2*pQ2 + 2*pQ3 + pQ4) / 6.
           mQn = (mQ1 + 2*mQ2 + 2*mQ3 + mQ4) / 6.
           mRn = (mR1 + 2*mR2 + 2*mR3 + mR4) / 6.
+!          print*, mQn(:,:,:)
           do iq=0,numflux-1
             if (Q(i,iq)==0) then
               pQn(:,iq) = 0.
@@ -175,6 +180,9 @@
           call new_state(i, h, sTp, sTn, pQn, J, Q, mSp, mSn, mQn, mRn&
                  , C_J, n_substeps, numflux, numsol, max_age, &
                  timeseries_length, nP_list)
+!          print*, mQn, 'mQn'
+!          print*, mRn, 'mRn'
+!          print*, mSn, 'mSn'
           do s=0,numsol-1
             do iq=0,numflux-1
               if (Q(i,iq)>0) then
@@ -183,6 +191,7 @@
               endif
             enddo
           enddo
+!          print*, C_Q(i,0,0), Q(i,0), 'C_Q'
           if (full_outputs) then
             do iq=0,numflux-1
               pQs(0, iq) = pQs(0, iq) &
@@ -332,28 +341,21 @@
                  numflux, numsol, max_age, timeseries_length, nP_list)
       implicit none
       integer, intent(in) :: i
-      integer, intent(in) :: n_substeps, numflux, numsol, max_age, &
-                 timeseries_length, nP_list
+      integer, intent(in) :: n_substeps, numflux, numsol, max_age, timeseries_length, nP_list
       real(8), intent(in), dimension(0:timeseries_length-1) :: J
       real(8), intent(in), dimension(0:timeseries_length-1,0:numflux-1) :: Q
       real(8), intent(in), dimension(0:nP_list-1) :: P_list
-      real(8), intent(in), dimension(0:nP_list-1, 0:timeseries_length-1, &
-                 0:numflux-1) :: rSAS_lookup
-      real(8), intent(in), dimension(0:timeseries_length-1,0:numflux-1,0:numsol-1) &
-                 :: alpha
+      real(8), intent(in), dimension(0:nP_list-1, 0:timeseries_length-1, 0:numflux-1) :: rSAS_lookup
+      real(8), intent(in), dimension(0:timeseries_length-1,0:numflux-1,0:numsol-1) :: alpha
       real(8), intent(in), dimension(0:timeseries_length-1,0:numsol-1) :: k1
       real(8), intent(in), dimension(0:timeseries_length-1,0:numsol-1) :: C_eq
-      real(8), intent(inout), dimension(0:max_age*n_substeps) &
-                 :: PQt_cum
+      real(8), intent(inout), dimension(0:max_age*n_substeps) :: PQt_cum
       real(8), intent(inout), dimension(0:max_age*n_substeps) :: STt_cum
-      real(8), intent(inout), dimension(0:max_age*n_substeps-1, 0:numflux-1) &
-                 :: pQt
-      real(8), intent(inout), dimension(0:max_age*n_substeps-1) :: sTt
-      real(8), intent(inout), dimension(0:max_age*n_substeps-1, 0:numflux-1, &
-                 0:numsol-1) :: mQt
-      real(8), intent(inout), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: &
-                 mRt
-      real(8), intent(inout), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mSt
+      real(8), intent(out), dimension(0:max_age*n_substeps-1, 0:numflux-1) :: pQt
+      real(8), intent(in), dimension(0:max_age*n_substeps-1) :: sTt
+      real(8), intent(out), dimension(0:max_age*n_substeps-1, 0:numflux-1, 0:numsol-1) :: mQt
+      real(8), intent(out), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mRt
+      real(8), intent(in), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mSt
       integer M, iq, s 
       M = max_age * n_substeps
       STt_cum = cumsum(sTt, M)
@@ -361,6 +363,11 @@
         call lookup(rSAS_lookup(:,i,iq), P_list, STt_cum, &
                  PQt_cum, nP_list, M+1)
         pQt(:,iq) = diff(PQt_cum, M+1)
+!      print*, STt_cum, '  STt_cum'
+!      print*, PQt_cum, '  PQt_cum'
+!      print*, pQt(:,0), '  pQt'
+!      print*, mSt(:,0), '  mSt'
+!      print*, sTt, '  sTt'
         do s=0,numsol-1
           where (sTt(:)>0)
             mQt(:,iq,s) = mSt(:,s) / sTt(:) * alpha(i,iq,s) &
@@ -373,6 +380,7 @@
       do s=0,numsol-1
          mRt(:,s) = k1(i,s) * (C_eq(i,s) * sTt - mSt(:,s))
       enddo
+!      print*, mQt, '  mQt'
       end subroutine get_flux
 
       subroutine new_state(i, hr, sTp, sTt, pQt, J, Q, mSp, mSt, mQt, &

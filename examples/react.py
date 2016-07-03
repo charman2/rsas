@@ -18,22 +18,26 @@ import pandas as pd
 # Generate the input timeseries
 # =====================================
 # length of the dataset
-S_0 = 4. # <-- volume of the uniformly sampled store
-Q_0 = 1.0 # <-- steady-state flow rate
+S_0 = 1. # <-- volume of the uniformly sampled store
+Q_0 = 0.1 # <-- steady-state flow rate
+C_J0 = 0.
+C_S0 = 0.0
+k10 = 0.4
+C_eq0 = 5.
 T_0 = S_0 / Q_0
 N = 10
-n_substeps = 2
+n_substeps = 10
 # Steady-state flow in and out for N timesteps
 J = np.ones(N) * Q_0
 Q = np.ones((N,1)) * Q_0
 # A timeseries of concentrations
-C_J = np.ones((N,1))
+C_J = np.ones((N,1)) * C_J0
 #C_J = -np.log(np.random.rand(N,1))
 # =========================
 # Parameters needed by rsas
 # =========================
 # The concentration of water older than the start of observations
-C_old = 0.
+C_old = [0.]
 # =========================
 # Create the rsas functions
 # =========================
@@ -47,14 +51,19 @@ rSAS_fun_Q1 = rsas.create_function(Q_rSAS_fun_type, Q_rSAS_fun_parameters)
 # =================
 # Initial condition
 # =================
-# Unknown initial age distribution, so just set this to zeros
-ST_init = np.zeros(N + 1)
+# Unknown initial age distribution
+ST_init = np.zeros(N + 2)
+ST_init[1:] = S_0
+CS_init = np.zeros((N+1,1))
+CS_init[0] = C_S0
+k1 = [k10]
+C_eq = [C_eq0]
 # =============
 # Run the model - first method
 # =============
 # Run it
-outputs = rsas.solve(J, Q, [rSAS_fun_Q1], ST_init=ST_init,
-                     mode='RK4', dt = 1., n_substeps=n_substeps, C_J=C_J, C_old=[C_old], verbose=True, debug=True)
+outputs = rsas.solve(J, Q, [rSAS_fun_Q1], ST_init=ST_init, CS_init=CS_init, k1=k1, C_eq=C_eq,
+                     mode='RK4', dt = 1., n_substeps=n_substeps, C_J=C_J, C_old=C_old, verbose=False, debug=False)
 #%%
 # Timestep-averaged outflow concentration
 # ROWS of C_Q are t - times
@@ -64,8 +73,8 @@ C_Qm1 = outputs['C_Q'][:,0,0]
 # Run the model - second method
 # =============
 # Run it
-outputs = rsas.solve(J, Q, [rSAS_fun_Q1], ST_init=ST_init,
-                     mode='RK4', dt = 1., n_substeps=n_substeps, verbose=True, debug=False)
+#outputs = rsas.solve(J, Q, [rSAS_fun_Q1], ST_init=ST_init,
+#                     mode='RK4', dt = 1., n_substeps=n_substeps, verbose=True, debug=True)
 # Age-ranked storage
 # ROWS of ST are T - ages
 # COLUMNS of ST are t - times
@@ -80,7 +89,7 @@ PQm = outputs['PQ'][:,:,0]
 # ROWS of C_Q are t - times
 # COLUMNS of PQ are q - fluxes
 # Use rsas.transport to convolve the input concentration with the TTD
-C_Qm2, C_mod_raw, observed_fraction = rsas.transport(PQm, C_J[:,0], C_old)
+C_Qm2, C_mod_raw, observed_fraction = rsas.transport(PQm, C_J[:,0], C_old[0])
 # ==================================
 # Plot the age-ranked storage
 # ==================================
@@ -104,19 +113,20 @@ plt.title('Age-ranked storage')
 # =====================================================================
 # Lets get the instantaneous value of the TTD at the end of each timestep
 print 'Getting the instantaneous TTD'
-PQi = np.zeros((N+1, N+1))
+PQi = np.zeros((N+2, N+1))
 PQi[:,0]  = rSAS_fun_Q1.cdf_i(ST[:,0],0)
 PQi[:,1:] = np.r_[[rSAS_fun_Q1.cdf_i(ST[:,i+1],i) for i in range(N)]].T
 # Lets also get the exact TTD
 print 'Getting the exact solution'
 n=100
-T=np.arange(N*n+1.)/n
-PQe = np.tile(1-np.exp(-T/T_0), (N*n+1., 1)).T
+T=np.arange(N*n)/n/T_0
+k = k10 * T_0
+C_Qei = ( C_J0 + C_eq0 * k + np.exp(-(1+k)*T) * (C_S0 - C_J0 + k * (C_S0 - C_eq0))) / (1+k)
 # Use the transit time distribution and input timeseries to estimate
 # the output timeseries for the exact and instantaneous cases
 print 'Getting the concentrations'
-C_Qi, C_mod_raw, observed_fraction = rsas.transport(PQi, C_J[:,0], C_old)
-C_Qei, C_mod_raw, observed_fraction = rsas.transport(PQe, C_J[:,0].repeat(n), C_old)
+C_Qi, C_mod_raw, observed_fraction = rsas.transport(PQi, C_J[:,0], C_old[0])
+#C_Qei, C_mod_raw, observed_fraction = rsas.transport(PQe, C_J[:,0].repeat(n), C_old[0])
 # This calculates an exact timestep-averaged value
 C_Qem = np.reshape(C_Qei,(N,n)).mean(axis=1)
 # Plot the results
@@ -125,13 +135,15 @@ fig = plt.figure(2)
 plt.clf()
 plt.step(np.arange(N), C_Qem, 'r', ls='-', label='mean exact', lw=2, where='post')
 plt.step(np.arange(N), C_Qm1, 'g', ls='--', label='mean rsas internal', lw=2, where='post')
-plt.step(np.arange(N), C_Qm2, 'b', ls=':', label='mean rsas.transport', lw=2, where='post')
-plt.plot((np.arange(N*n) + 1.)/n, C_Qei, 'r-', label='inst. exact', lw=1)
-plt.plot(np.arange(N)+1, C_Qi, 'b:o', label='inst. rsas.transport', lw=1)
+#plt.step(np.arange(N), C_Qm2, 'b', ls=':', label='mean rsas.transport', lw=2, where='post')
+#plt.plot((np.arange(N*n) + 1.)/n, C_Qei, 'r-', label='inst. exact', lw=1)
+#plt.plot(np.arange(N)+1, C_Qi, 'b:o', label='inst. rsas.transport', lw=1)
 plt.legend(loc=0)
-plt.ylim((0,1))
+plt.ylim((0,C_eq0))
+plt.xlim((0,N+1))
 plt.ylabel('Concentration [-]')
 plt.xlabel('time')
 plt.title('Outflow concentration')
 plt.draw()
 plt.show()
+
