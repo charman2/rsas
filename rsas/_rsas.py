@@ -135,6 +135,9 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
     global DEBUG
     VERBOSE=verbose
     DEBUG=debug
+    from time import clock
+    starttime = clock()
+    _verbose('Checking inputs...')
     if type(J) is not np.ndarray:
         J = np.array(J)
     if J.ndim!=1:
@@ -262,13 +265,6 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
         #                    dt=dt, n_substeps=n_substeps,
         #                    full_outputs=full_outputs,
         #                    CS_init=CS_init, C_J=C_J, alpha=alpha, k1=k1, C_eq=C_eq, C_old=C_old)
-        var=        [J, Q, rSAS_lookup, P_list, ST_init]
-        var=        [CS_init, C_J, alpha, k1, C_eq, C_old]
-        print [n_substeps, numflux, numsol, max_age, timeseries_length,  nP_list]
-        for v in var:
-            print v
-        from time import clock
-        starttime = clock()
         fresult = f_solve_rk4(
                 J, Q, rSAS_lookup, P_list, ST_init, dt, 
                 verbose, debug, full_outputs,
@@ -287,9 +283,9 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
         result = {}
     if full_outputs:
         if numsol>0:
-            result.update({'ST':ST, 'PQ':PQ, 'WaterBalance':WaterBalance, 'MS':MS, 'MQ':MQ, 'MR':MR, 'C_Q':C_Q, 'SoluteBalance':SoluteBalance})
+            result.update({'ST':ST, 'PQ':PQ, 'WaterBalance':WaterBalance, 'MS':MS, 'MQ':MQ, 'MR':MR, 'C_Q':C_Q, 'SoluteBalance':SoluteBalance, 'P_list':P_list, 'rSAS_lookup':rSAS_lookup})
         else:
-            result.update({'ST':ST, 'PQ':PQ, 'WaterBalance':WaterBalance})
+            result.update({'ST':ST, 'PQ':PQ, 'WaterBalance':WaterBalance, 'P_list':P_list, 'rSAS_lookup':rSAS_lookup})
     return result
 
 ## defining solver functions
