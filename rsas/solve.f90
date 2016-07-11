@@ -1,5 +1,5 @@
 ! -*- f90 -*-
-      subroutine f_solve_RK4(J, Q, rSAS_lookup, P_list, ST_init, dt,  &
+      subroutine f_solve(J, Q, rSAS_lookup, P_list, ST_init, dt,  &
                  verbose, debug, full_outputs,&
                  CS_init, C_J, alpha, k1, C_eq, C_old, ST, PQ, &
                  WaterBalance, MS, MQ, MR, C_Q, SoluteBalance, &
@@ -63,8 +63,10 @@
       real(8), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mSn
       real(8), dimension(0:max_age*n_substeps, 0:numsol-1) :: MSn_cum
       real(8), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mSt
+      real(8) :: one8
       character(len=128) :: debugstring
       integer is, ie, iq, s, M
+      one8 = 1.0
       call f_verbose(verbose,'...Initializing arrays...')
       C_Q(:, :, :) = 0.
       ST(:, :) = 0.
@@ -135,10 +137,7 @@
         mQs(:, :, :) = 0.
         mRs(:, :) = 0.
         do k=0,n_substeps-1
-          if (debug) then
-            write (debugstring,*) i, ' ', k
-            print*, debugstring
-          endif
+          call f_debug(debug, 'Timestep, Substep', (/ i*one8, k*one8/))
           sTp(1:M-1) = sTn(0:M-2)
           sTp(0) = 0.
           mSp(1:M-1,:) = mSn(0:M-2,:)
@@ -167,11 +166,6 @@
           pQn = (pQ1 + 2*pQ2 + 2*pQ3 + pQ4) / 6.
           mQn = (mQ1 + 2*mQ2 + 2*mQ3 + mQ4) / 6.
           mRn = (mR1 + 2*mR2 + 2*mR3 + mR4) / 6.
-          if (debug) then
-            print*, 'pQn', pQn(:,0)
-            print*, 'mQn', mQn(:,0,0)
-            print*, 'mRn', mRn(:,0)
-          endif
           do iq=0,numflux-1
             if (Q(i,iq)==0) then
               pQn(:,iq) = 0.
@@ -180,20 +174,25 @@
           call new_state(i, h, sTp, sTn, pQn, J, Q, mSp, mSn, mQn, mRn&
                  , C_J, n_substeps, numflux, numsol, max_age, &
                  timeseries_length, nP_list)
-          if (debug) then
-            print*, 'mSn', mSn
-          endif
+          do iq=0,numflux-1
+            call f_debug(debug, 'pQn', pQn(:,iq))
+          enddo
           do s=0,numsol-1
+            call f_debug(debug, 'mSn', mSn(:,s))
+            call f_debug(debug, 'mRn', mRn(:,s))
             do iq=0,numflux-1
+              call f_debug(debug, 'mQn', mQn(:,iq,s))
+            enddo
+          enddo
+          do iq=0,numflux-1
+            do s=0,numsol-1
               if (Q(i,iq)>0) then
                 C_Q(i,iq,s) = C_Q(i,iq,s) + sum(mQn(:,iq,s)) / &
                  Q(i,iq) / n_substeps
+              call f_debug(debug, 'C_Q', C_Q(i:i,iq,s))
               endif
             enddo
           enddo
-          if (debug) then
-            print*, 'C_Q', C_Q(i,0,0), Q(i,0)
-          endif
           if (full_outputs) then
             do iq=0,numflux-1
               pQs(0, iq) = pQs(0, iq) &
@@ -266,12 +265,18 @@
       call f_verbose(verbose,'...Finished...')
       contains
 
-      subroutine f_debug(debug, debugstring)
+      subroutine f_debug(debug, debugstring, debugdblepr)
       implicit none
       logical, intent(in) :: debug
       character(len=*), intent(in) :: debugstring
+      real(8), dimension(:), intent(in) :: debugdblepr
       if (debug) then
-          print *, debugstring
+          print *, debugstring, debugdblepr
+          !if (size(debugdblepr)==0) then
+          !    call dblepr(debugstring, -1, 0, 0)
+          !else
+          !    call dblepr(debugstring, -1, debugdblepr, size(debugdblepr))
+          !endif
       endif
       end subroutine f_debug
 
@@ -281,6 +286,7 @@
       character(len=*), intent(in) :: debugstring
       if (verbose) then
           print *, debugstring
+          !call dblepr(debugstring, -1, 0, 0)
       endif
       end subroutine f_verbose
 
@@ -364,20 +370,15 @@
       integer M, iq, s 
       M = max_age * n_substeps
       STt_cum = cumsum(sTt, M)
-      if (debug) then
-        print*, 'get_flux'
-        print*, '  sTt', sTt
-        print*, '  STt_cum', STt_cum
-      endif
+        call f_debug(debug, 'sTt', sTt)
+        call f_debug(debug, 'STt_cum', STt_cum)
       do iq=0,numflux-1
         call lookup(rSAS_lookup(:,i,iq), P_list, STt_cum, &
                  PQt_cum, nP_list, M+1)
         pQt(:,iq) = diff(PQt_cum, M+1)
-      if (debug) then
-        print*, '  PQt_cum', PQt_cum
-        print*, '  pQt', pQt(:,0)
-        print*, '  mSt', mSt(:,0)
-      endif
+        call f_debug(debug, 'PQt_cum', PQt_cum)
+        call f_debug(debug, 'pQt', pQt(:,iq))
+        call f_debug(debug, 'mSt', mSt(:,iq))
         do s=0,numsol-1
           where (sTt(:)>0)
             mQt(:,iq,s) = mSt(:,s) / sTt(:) * alpha(i,iq,s) &
@@ -389,12 +390,10 @@
       enddo
       do s=0,numsol-1
          mRt(:,s) = k1(i,s) * (C_eq(i,s) * sTt - mSt(:,s))
+         call f_debug(debug, 'mEt', mQt(:,1,s))
+         call f_debug(debug, 'mQt', mQt(:,0,s))
+         call f_debug(debug, 'mRt', mRt(:,s))
       enddo
-      if (debug) then
-        print*, '  mEt', mQt(:,1,0)
-        print*, '  mQt', mQt(:,0,0)
-        print*, '  mRt', mRt(:,0)
-      endif
       end subroutine get_flux
 
       subroutine new_state(i, hr, sTp, sTt, pQt, J, Q, mSp, mSt, mQt, &
@@ -429,4 +428,4 @@
       enddo
       end subroutine new_state
 
-      end subroutine f_solve_RK4
+      end subroutine f_solve

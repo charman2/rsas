@@ -54,7 +54,7 @@ ST_init = np.zeros(N + 1)
 # =============
 # Run it
 outputs = rsas.solve(J, Q, [rSAS_fun_Q1], ST_init=ST_init,
-                     mode='RK4', dt = 1., n_substeps=n_substeps, C_J=C_J, C_old=[C_old], verbose=True, debug=True)
+                     mode='RK4', dt = 1., n_substeps=n_substeps, C_J=C_J, C_old=[C_old], verbose=True, debug=False)
 #%%
 # Timestep-averaged outflow concentration
 # ROWS of C_Q are t - times
