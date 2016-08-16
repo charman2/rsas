@@ -11,7 +11,7 @@ watershed, Water Resour. Res., doi:10.1002/2014WR015707.
 Installation
 =================
 
-The main part of the code is written in Cython to allow fast execution. Before
+The main part of the code is written in Fortran to allow fast execution. Before
 you use rsas you must comile and install it. Open a terminal in this directory
 and run:
 
