@@ -168,6 +168,7 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
             raise TypeError('P_list must be sorted')
     else:
         P_list = np.linspace(0,1,101)
+    _verbose('...making rsas lookup tables...')
     rSAS_lookup = make_lookup(rSAS_fun, timeseries_length, P_list)
     nP_list = len(P_list)
     if type(full_outputs) is not bool:
@@ -230,7 +231,7 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
             raise TypeError("CS_init array dimensions don't match other inputs")
         CS_init = CS_init.astype(dtype)
     else:
-        CS_init = np.zeros((max_age, numflux))
+        CS_init = np.zeros((max_age, numsol))
     if dt is not None:
         dt = np.float64(dt)
     if n_substeps is not None:
