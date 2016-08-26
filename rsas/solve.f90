@@ -35,7 +35,7 @@
       real(8) :: h
       real(8), dimension(0:max_age*n_substeps) :: ST0_cum
       real(8), dimension(0:max_age*n_substeps, 0:numflux-1) :: PQ0_cum
-      real(8), dimension(0:max_age*n_substeps) :: PQt_cum
+      real(8), dimension(0:max_age*n_substeps, 0:numflux-1) :: PQt_cum
       real(8), dimension(0:max_age*n_substeps) :: STt_cum
       real(8), dimension(0:max_age*n_substeps-1) :: sTp
       real(8), dimension(0:max_age*n_substeps-1) :: sTt
@@ -78,7 +78,7 @@
       SoluteBalance(:, :, :) = 0.
       ST0_cum(:) = 0.
       PQ0_cum(:, :) = 0.
-      PQt_cum(:) = 0.
+      PQt_cum(:,:) = 0.
       STt_cum(:) = 0.
       sTp(:) = 0.
       sTt(:) = 0.
@@ -142,24 +142,28 @@
           sTp(0) = 0.
           mSp(1:M-1,:) = mSn(0:M-2,:)
           mSp(0,:) = 0.
+          call f_debug(debug, 'RK', (/1._8/))
           call get_flux(i, sTp, STt_cum, pQ1, PQt_cum, J, Q, rSAS_lookup, &
                  P_list, mSp, mQ1, mR1, alpha, k1, C_eq, n_substeps, &
                  numflux, numsol, max_age, timeseries_length, nP_list)
           call new_state(i, h/2, sTp, sTt, pQ1, J, Q, mSp, mSt, mQ1, &
                  mR1, C_J, n_substeps, numflux, numsol, max_age, &
                  timeseries_length, nP_list)
+          call f_debug(debug, 'RK', (/2._8/))
           call get_flux(i, sTt, STt_cum, pQ2, PQt_cum, J, Q, rSAS_lookup, &
                  P_list, mSt, mQ2, mR2, alpha, k1, C_eq, n_substeps, &
                  numflux, numsol, max_age, timeseries_length, nP_list)
           call new_state(i, h/2, sTp, sTt, pQ2, J, Q, mSp, mSt, mQ2, &
                  mR2, C_J, n_substeps, numflux, numsol, max_age, &
                  timeseries_length, nP_list)
+          call f_debug(debug, 'RK', (/3._8/))
           call get_flux(i, sTt, STt_cum, pQ3, PQt_cum, J, Q, rSAS_lookup, &
                  P_list, mSt, mQ3, mR3, alpha, k1, C_eq, n_substeps, &
                  numflux, numsol, max_age, timeseries_length, nP_list)
           call new_state(i, h, sTp, sTt, pQ3, J, Q, mSp, mSt, mQ3, mR3&
                  , C_J, n_substeps, numflux, numsol, max_age, &
                  timeseries_length, nP_list)
+          call f_debug(debug, 'RK', (/4._8/))
           call get_flux(i, sTt, STt_cum, pQ4, PQt_cum, J, Q, rSAS_lookup, &
                  P_list, mSt, mQ4, mR4, alpha, k1, C_eq, n_substeps, &
                  numflux, numsol, max_age, timeseries_length, nP_list)
@@ -360,7 +364,7 @@
       real(8), intent(in), dimension(0:timeseries_length-1,0:numflux-1,0:numsol-1) :: alpha
       real(8), intent(in), dimension(0:timeseries_length-1,0:numsol-1) :: k1
       real(8), intent(in), dimension(0:timeseries_length-1,0:numsol-1) :: C_eq
-      real(8), intent(inout), dimension(0:max_age*n_substeps) :: PQt_cum
+      real(8), intent(inout), dimension(0:max_age*n_substeps, 0:numflux-1) :: PQt_cum
       real(8), intent(inout), dimension(0:max_age*n_substeps) :: STt_cum
       real(8), intent(out), dimension(0:max_age*n_substeps-1, 0:numflux-1) :: pQt
       real(8), intent(in), dimension(0:max_age*n_substeps-1) :: sTt
@@ -370,15 +374,17 @@
       integer M, iq, s 
       M = max_age * n_substeps
       STt_cum = cumsum(sTt, M)
-        call f_debug(debug, 'sTt', sTt)
-        call f_debug(debug, 'STt_cum', STt_cum)
+      call f_debug(debug, 'sTt', sTt)
+      call f_debug(debug, 'STt_cum', STt_cum)
+      do s=0,numsol-1
+        call f_debug(debug, 'mSt', mSt(:,s))
+      enddo
       do iq=0,numflux-1
         call lookup(rSAS_lookup(:,i,iq), P_list, STt_cum, &
-                 PQt_cum, nP_list, M+1)
-        pQt(:,iq) = diff(PQt_cum, M+1)
-        call f_debug(debug, 'PQt_cum', PQt_cum)
+                 PQt_cum(:,iq), nP_list, M+1)
+        pQt(:,iq) = diff(PQt_cum(:,iq), M+1)
+        call f_debug(debug, 'PQt_cum', PQt_cum(:,iq))
         call f_debug(debug, 'pQt', pQt(:,iq))
-        call f_debug(debug, 'mSt', mSt(:,iq))
         do s=0,numsol-1
           where (sTt(:)>0)
             mQt(:,iq,s) = mSt(:,s) / sTt(:) * alpha(i,iq,s) &
@@ -423,8 +429,8 @@
         mSt(:,s) = mSp(:,s) + mRt(:,s) * hr
         do iq=0,numflux-1
           mSt(:,s) = mSt(:,s) - mQt(:,iq,s) * hr
-          mSt(0,s) = mSt(0,s) + J(i) * C_J(i,s) * hr
         enddo
+        mSt(0,s) = mSt(0,s) + J(i) * C_J(i,s) * hr
       enddo
       end subroutine new_state
 
