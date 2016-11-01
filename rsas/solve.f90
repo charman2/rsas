@@ -224,7 +224,7 @@
         if (full_outputs) then
           STn_cum = cumsum(sTn, M)
           ST(1:max_age, i+1) = STn_cum(n_substeps:M:n_substeps)
-          WaterBalance(1:max_age-1, i) = diff(ST(1:max_age-1, i), max_age) - &
+          WaterBalance(1:max_age-1, i) = diff(ST(0:max_age-1, i), max_age) - &
                    diff(ST(1:max_age, i+1), max_age)
           WaterBalance(0, i) = J(i) * dt - ST(1, i+1)
           do iq=0,numflux-1
@@ -232,7 +232,7 @@
             WaterBalance(1:max_age-1, i) = WaterBalance(1:max_age-1, i) - dt &
                    * (Q(i,iq) * diff(PQ(1:max_age,i+1,iq), max_age))
             WaterBalance(0, i) = WaterBalance(0, i) - dt * Q(i,iq) * &
-                   (PQ(0,i+1,iq) - PQ(0,i+1,iq))
+                   (PQ(1,i+1,iq) - PQ(0,i+1,iq))
           enddo
           do s=0,numsol-1
             MSn_cum(:,s) = cumsum(mSn(:,s), M)

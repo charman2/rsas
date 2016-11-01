@@ -257,7 +257,6 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
                 CS_init, C_J, alpha, k1, C_eq, C_old, 
                 n_substeps, numflux, numsol, max_age, timeseries_length,  nP_list)
         _verbose('... done')
-        print clock()-starttime
         ST, PQ, WaterBalance, MS, MQ, MR, C_Q, SoluteBalance = fresult
     else:
         raise TypeError('Invalid solution mode.')
