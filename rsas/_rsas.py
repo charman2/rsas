@@ -147,14 +147,6 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
     else:
         ST_init = np.zeros(timeseries_length+1)
     max_age = len(ST_init)-1
-    if type(rSAS_fun) is not list:
-        rSAS_fun = [rSAS_fun]
-    if numflux!=len(rSAS_fun):
-        raise TypeError('Each rSAS function must have a corresponding outflow in Q. Numbers don''t match')
-    for fun in rSAS_fun:
-        fun_methods = [method for method in dir(fun) if callable(getattr(fun, method))]
-        if not ('cdf_all' in fun_methods and 'cdf_i' in fun_methods):
-            raise TypeError('Each rSAS function must have methods rSAS_fun.cdf_all and rSAS_fun.cdf_i')
     if P_list is not None:
         if type(P_list) is not np.ndarray:
             P_list = np.array(P_list)
@@ -168,9 +160,26 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
             raise TypeError('P_list must be sorted')
     else:
         P_list = np.linspace(0,1,101)
-    _verbose('...making rsas lookup tables...')
-    rSAS_lookup = make_lookup(rSAS_fun, timeseries_length, P_list)
     nP_list = len(P_list)
+    if type(rSAS_fun) is np.ndarray:
+        if ((rSAS_fun.shape[0]==nP_list) and
+            (rSAS_fun.shape[1]==timeseries_length) and
+            (rSAS_fun.shape[2]==numflux)):
+            _verbose('...assuming rSAS_fun is already rSAS_lookup...')
+            rSAS_lookup = rSAS_fun
+        else:
+            raise TypeError('rSAS_lookup is wrong shape')
+    else:
+        if type(rSAS_fun) is not list:
+            rSAS_fun = [rSAS_fun]
+        if numflux!=len(rSAS_fun):
+            raise TypeError('Each rSAS function must have a corresponding outflow in Q. Numbers don''t match')
+        for fun in rSAS_fun:
+            fun_methods = [method for method in dir(fun) if callable(getattr(fun, method))]
+            if not ('cdf_all' in fun_methods and 'cdf_i' in fun_methods):
+                raise TypeError('Each rSAS function must have methods rSAS_fun.cdf_all and rSAS_fun.cdf_i')
+        _verbose('...making rsas lookup table rSAS_lookup...')
+        rSAS_lookup = make_lookup(rSAS_fun, timeseries_length, P_list)
     if type(full_outputs) is not bool:
         raise TypeError('full_outputs must be a boolean (True/False)')
     if C_J is not None:
