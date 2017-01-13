@@ -20,7 +20,7 @@ cdef inline np.float64_t float64_max(np.float64_t a, np.float64_t b): return a i
 cdef inline np.float64_t float64_min(np.float64_t a, np.float64_t b): return a if a <= b else b
 import scipy.stats
 from scipy.special import gamma as gamma_function
-from scipy.special import gammainc
+from scipy.special import gammainc, gammaincinv
 from scipy.special import erfc
 from scipy.interpolate import interp1d
 from scipy.optimize import fmin, minimize_scalar, fsolve
@@ -36,7 +36,7 @@ def _verbose(statement):
     if debug:
         print statement
 
-def create_function(rSAS_type, np.ndarray[dtype_t, ndim=2] params):
+def create_function(rSAS_type, params):
     """Initialize an rSAS function
 
     Args:
@@ -87,6 +87,33 @@ def create_function(rSAS_type, np.ndarray[dtype_t, ndim=2] params):
     else:
         raise ValueError('No such rSAS function type')
 
+def make_lookup(rSAS_fun, P_list=None, NP = 101):
+    if P_list is not None:
+        if type(P_list) is not np.ndarray:
+            P_list = np.array(P_list)
+        if P_list.ndim!=1:
+            raise TypeError('P_list must be a 1-D array')
+        if P_list[-1]!=1:
+            raise TypeError('P_list[-1] must be 1')
+        if P_list[0]!=0:
+            raise TypeError('P_list[0] must be 0')
+        if not all(P_list[i] <= P_list[i+1] for i in xrange(len(P_list)-1)):
+            raise TypeError('P_list must be sorted')
+    else:
+        P_list = np.linspace(0,1,NP)
+    NP = len(P_list)
+    N = len(rSAS_fun.ST_min)
+    fun_methods = [method for method in dir(rSAS_fun) if callable(getattr(rSAS_fun, method))]
+    if not ('cdf_all' in fun_methods and 'cdf_i' in fun_methods):
+        raise TypeError('Each rSAS function must have methods rSAS_fun.cdf_all and rSAS_fun.cdf_i')
+    rSAS_lookup = np.zeros((len(P_list),N))
+    for i in range(N):
+        rSAS_lookup[:,i] = rSAS_fun.invcdf_i(P_list,i)
+        rSAS_lookup[0,i] = rSAS_fun.ST_min[i]
+    return  P_list, rSAS_lookup
+
+def convert_to_lookup(rSAS_fun, **kwargs):
+    return create_function('lookuptable', make_lookup(rSAS_fun, **kwargs))
 
 class rSASFunctionClass:
     """Base class for constructing rSAS functions
@@ -190,18 +217,22 @@ class _gamma_rSAS(rSASFunctionClass):
     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
         return np.where(ST>self.ST_min[i], np.where(ST<self.ST_max[i],
                 gammainc(self.a[i], self.lam[i]*(ST-self.ST_min[i]))*self.rescale[i], 1.), 0.)
+    def invcdf_i(self, P, i):
+        return np.where(P>0, np.where(P<1, gammaincinv(self.a[i], P/self.rescale[i]),
+                np.inf), np.nan)/self.lam[i] + self.ST_min[i]
 
 class _lookup_rSAS(rSASFunctionClass):
-    def __init__(self, np.ndarray[dtype_t, ndim=2] params):
-        params = params.copy()
-        self.S_T = params[:,0]
-        self.Omega = params[:,1]
-        self.ST_min = self.S_T[0]
-        self.ST_max = self.S_T[-1]
-        if not (self.Omega[0]==0 and self.Omega[-1]==1):
+    def __init__(self, params):
+        self.P_list = params[0].copy()
+        self.rSAS_lookup = params[1].copy()
+        self.ST_min = self.rSAS_lookup[0, :]
+        self.ST_max = self.rSAS_lookup[-1, :]
+        if not (self.P_list[0]==0 and self.P_list[-1]==1):
             raise ValueError('The first and last value of S_T must correspond with probability 0 and 1 respectively')
-        self.interp1d = interp1d(self.S_T, self.Omega, kind='linear', copy=False, bounds_error=True, assume_sorted=True)
+        self.interpfuns=[]
+        for i in range(len(self.ST_min)):
+            self.interpfuns.append(interp1d(self.rSAS_lookup[:,i], self.P_list, kind='linear', copy=False, bounds_error=False, assume_sorted=True))
     def cdf_all(self, np.ndarray[dtype_t, ndim=1] ST):
-        return self.interp1d(np.where(ST < self.ST_max, np.where(ST > self.ST_min,  ST, 0.), 1.))
+        return None
     def cdf_i(self, np.ndarray[dtype_t, ndim=1] ST, int i):
-        return self.interp1d(np.where(ST < self.ST_max, np.where(ST > self.ST_min, ST, 0.), 1.))
+        return np.where(ST < self.ST_max[i], np.where(ST > self.ST_min[i], self.interpfuns[i](ST), 0.), 1.)
