@@ -69,9 +69,12 @@ def create_function(rSAS_type, params):
             * ``Q_params[:, 1]`` = Omega(S_T)
     """
     function_dict = {'gamma':_gamma_rSAS,
+                     'exponential':_exponential_rSAS,
                      'uniform':_uniform_rSAS,
+                     'power':_power_rSAS,
                      'kumaraswami':_kumaraswami_rSAS,
                      'invgauss':_invgauss_rSAS,
+                     'triangle':_triangle_rSAS,
                      'lookuptable':_lookup_rSAS}
     if rSAS_type in function_dict.keys():
         return function_dict[rSAS_type](params)
@@ -108,6 +111,35 @@ class rSASFunctionClass:
     def cdf_i(self, ST, i):
         raise NotImplementedError('cdf_i not implemented in derived rSASFunctionClass')
 
+class _power_rSAS(rSASFunctionClass):
+    def __init__(self, params):
+        params = params.copy()
+        self.ST_min = params[:,0]
+        self.ST_max = params[:,1]
+        self.scale = params[:,2]
+        self.bT = params[:,3]
+        self.rescale = np.where(np.isfinite(self.ST_max), 1./(
+             1 - ( 1 - ((self.ST_max - self.ST_min)/self.scale))**(1./(2-self.bT))), 
+                                                          1.)
+    def cdf_all(self, ST):
+        return np.where(ST > self.ST_min, 
+                    np.where(ST < self.ST_max,
+                         1 - ( 1 - ((ST - self.ST_min)/(self.scale)))**(1./(2-self.bT)), 
+                         1.), 
+                    0.)
+    def cdf_i(self, ST, i):
+        return np.where(ST > self.ST_min[i], 
+                    np.where(ST < self.ST_max[i],
+                         1 - ( 1 - ((ST - self.ST_min[i])/(self.scale[i])))**(1./(2-self.bT[i])), 
+                         1.), 
+                    0.)
+    def invcdf_i(self, P, i):
+        return np.where(P>0, 
+                    np.where(P<1, 
+                         (1-(1-P)**(2-self.bT[i])),
+                        np.inf), 
+                    np.nan) * self.scale[i] + self.ST_min[i]
+
 class _kumaraswami_rSAS(rSASFunctionClass):
     def __init__(self, params):
         params = params.copy()
@@ -141,6 +173,51 @@ class _uniform_rSAS(rSASFunctionClass):
     def invcdf_i(self, P, i):
         return np.where(P < 1, np.where(P > 0, P, 0.), 1.)/self.lam[i] + self.ST_min[i]
 
+class _triangle_rSAS(rSASFunctionClass):
+    def __init__(self, params):
+        params = params.copy()
+        self.ST_min = params[:,0]
+        self.ST_max = params[:,1]
+        self.ST_mode = params[:,2]
+        self.ST_mode = np.maximum(self.ST_mode, self.ST_min)
+        self.ST_mode = np.minimum(self.ST_mode, self.ST_max)
+        self.lama = 1.0/(self.ST_max-self.ST_min)/(self.ST_mode-self.ST_min)
+        self.lamb = 1.0/(self.ST_max-self.ST_min)/(self.ST_max-self.ST_mode)
+        self.Pi = (self.ST_mode-self.ST_min)/(self.ST_max-self.ST_min)
+    def cdf_all(self, ST):
+        return np.where(ST < self.ST_max, 
+                    np.where(ST < self.ST_mode,
+                        np.where(ST < self.ST_min,
+                            0.,
+                            self.lama * (ST - self.ST_min)**2
+                        ),
+                        1-self.lamb * (self.ST_max - ST)**2
+                    ),
+                    1.
+                )
+    def cdf_i(self, ST, i):
+        return np.where(ST < self.ST_max[i], 
+                    np.where(ST < self.ST_mode[i],
+                        np.where(ST < self.ST_min[i],
+                            0.,
+                            self.lama[i] * (ST - self.ST_min[i])**2
+                        ),
+                        1-self.lamb[i] * (self.ST_max[i] - ST)**2
+                    ),
+                    1.
+                )
+    def invcdf_i(self, P, i):
+        return np.where(P < 1,
+                    np.where(P < self.Pi[i],
+                        np.where(P < 0,
+                            self.ST_min[i],
+                            self.ST_min[i] + np.sqrt(P/self.lama[i])
+                        ),
+                        self.ST_max[i] - np.sqrt((1-P)/self.lamb[i])
+                    ),
+                    self.ST_max[i]
+                )
+
 class _invgauss_rSAS(rSASFunctionClass):
     def __init__(self, params):
         params = params.copy()
@@ -169,6 +246,27 @@ class _stats_rSAS(rSASFunctionClass):
     def cdf_i(self, ST, i):
         return [self.dist[i].cdf(STi) for STi in ST]
 
+class _exponential_rSAS(rSASFunctionClass):
+    def __init__(self, params):
+        params = params.copy()
+        self.ST_min = params[:,0]
+        self.ST_max = params[:,1]
+        self.scale = params[:,2]
+        self.lam = 1.0/self.scale
+        self.rescale = np.where(np.isfinite(self.ST_max), 1/(1-np.exp(-self.lam * (self.ST_max-self.ST_min))), 1.)
+    def cdf_all(self, ST):
+        return np.where(ST>self.ST_min, np.where(ST<self.ST_max,
+                (1-np.exp(-self.lam * (ST-self.ST_min)))*self.rescale, 1.), 0.)
+    def cdf_i(self, ST, i):
+        return np.where(ST>self.ST_min[i], np.where(ST<self.ST_max[i],
+                (1-np.exp(-self.lam[i] * (ST-self.ST_min[i])))*self.rescale[i], 1.), 0.)
+    def invcdf_i(self, P, i):
+        return np.where(P>=0, 
+                   np.where(P<1, 
+                       - self.scale[i] * np.log(1-P/self.rescale[i]),
+                       np.inf),
+                   np.nan) + self.ST_min[i]
+
 class _gamma_rSAS(rSASFunctionClass):
     def __init__(self, params):
         params = params.copy()
@@ -186,20 +284,29 @@ class _gamma_rSAS(rSASFunctionClass):
         return np.where(ST>self.ST_min[i], np.where(ST<self.ST_max[i],
                 gammainc(self.a[i], self.lam[i]*(ST-self.ST_min[i]))*self.rescale[i], 1.), 0.)
     def invcdf_i(self, P, i):
-        return np.where(P>0, np.where(P<1, gammaincinv(self.a[i], P/self.rescale[i]),
+        return np.where(P>=0, np.where(P<1, gammaincinv(self.a[i], P/self.rescale[i]),
                 np.inf), np.nan)/self.lam[i] + self.ST_min[i]
+
+class invariant:
+    def __init__(self, value):
+        self.value = value
+    def __getitem__(self, anyindex):
+        return self.value
 
 class _lookup_rSAS(rSASFunctionClass):
     def __init__(self, params):
         params = params.copy()
         self.S_T = params[:,0]
         self.Omega = params[:,1]
-        self.ST_min = self.S_T[0]
-        self.ST_max = self.S_T[-1]
+        self.ST_min = invariant(self.S_T[0])
+        self.ST_max = invariant(self.S_T[-1])
         if not (self.Omega[0]==0 and self.Omega[-1]==1):
             raise ValueError('The first and last value of S_T must correspond with probability 0 and 1 respectively')
         self.interp1d = interp1d(self.S_T, self.Omega, kind='linear', copy=False, bounds_error=True, assume_sorted=True)
+        self.interp1d_inv = interp1d(self.Omega, self.S_T, kind='linear', copy=False, bounds_error=True, assume_sorted=True)
     def cdf_all(self, ST):
-        return self.interp1d(np.where(ST < self.ST_max, np.where(ST > self.ST_min,  ST, 0.), 1.))
+        return self.interp1d(np.where(ST < self.ST_max[0], np.where(ST > self.ST_min[0], ST, 0.), 1.))
     def cdf_i(self, ST, i):
-        return self.interp1d(np.where(ST < self.ST_max, np.where(ST > self.ST_min, ST, 0.), 1.))
+        return self.interp1d(np.where(ST < self.ST_max[0], np.where(ST > self.ST_min[0], ST, 0.), 1.))
+    def invcdf_i(self, P, i):
+        return np.where(P>=self.Omega[0], np.where (P<=self.Omega[-1], self.interp1d_inv(P), self.ST_max[0]), self.ST_min[0])

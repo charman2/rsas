@@ -180,6 +180,7 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
                 raise TypeError('Each rSAS function must have methods rSAS_fun.cdf_all and rSAS_fun.cdf_i')
         _verbose('...making rsas lookup table rSAS_lookup...')
         rSAS_lookup = make_lookup(rSAS_fun, timeseries_length, P_list)
+        _verbose('...done...')
     if type(full_outputs) is not bool:
         raise TypeError('full_outputs must be a boolean (True/False)')
     if C_J is not None:
