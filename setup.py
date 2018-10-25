@@ -21,7 +21,7 @@ config = {
     'url': '',
     'download_url': '',
     'author_email': 'charman1@jhu.edu',
-    'version': '0.6',
+    'version': '0.7',
     'install_requires': ['numpy', 'scipy'],
     'packages' : ['rsas'],
     'scripts': [],
