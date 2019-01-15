@@ -159,6 +159,12 @@ class _kumaraswami_rSAS(rSASFunctionClass):
                                  1 - ( 1 - ((ST - self.ST_min[i])/(self.ST_max[i] - self.ST_min[i]))**self.a[i])**self.b[i], 1.), 0.),
                         np.where(ST > self.ST_min[i],
                                  1 - ( 1 - ((ST - self.ST_min[i])/(self.ST_max[i] - self.ST_min[i]))**self.a[i])**self.b[i], 0.))
+    def invcdf_i(self, P, i):
+        return np.where(self.ST_max[i]>=self.ST_min[i],
+                        np.where(P > 0, np.where(P < 1,
+                                 (1-(1-P)**(1/self.b[i]))**(1/self.a[i])*(self.ST_max[i] - self.ST_min[i]) + self.ST_min[i], self.ST_max[i]), self.ST_min[i]),
+                        np.where(P > 0,
+                                 (1-(1-P)**(1/self.b[i]))**(1/self.a[i])*(self.ST_max[i] - self.ST_min[i]) + self.ST_min[i], self.ST_min[i]))
 
 class _uniform_rSAS(rSASFunctionClass):
     def __init__(self, params):
