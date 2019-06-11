@@ -372,6 +372,7 @@
       real(8), intent(out), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mRt
       real(8), intent(in), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mSt
       integer M, iq, s 
+      call f_debug(debug,'get_flux', (/0._8/))
       M = max_age * n_substeps
       STt_cum = cumsum(sTt, M)
       call f_debug(debug, 'sTt', sTt)
@@ -396,8 +397,8 @@
       enddo
       do s=0,numsol-1
          mRt(:,s) = k1(i,s) * (C_eq(i,s) * sTt - mSt(:,s))
-         call f_debug(debug, 'mEt', mQt(:,1,s))
          call f_debug(debug, 'mQt', mQt(:,0,s))
+         call f_debug(debug, 'mEt', mQt(:,1,s))
          call f_debug(debug, 'mRt', mRt(:,s))
       enddo
       end subroutine get_flux
@@ -419,6 +420,7 @@
       real(8), intent(inout), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mSp
       real(8), intent(inout), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mRt
       real(8), intent(in), dimension(0:timeseries_length-1, 0:numsol-1) :: C_J
+      call f_debug(debug,'new_state', (/0._8/))
       M = max_age * n_substeps
       sTt = sTp
       do iq=0,numflux-1
